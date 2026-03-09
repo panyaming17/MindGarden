@@ -1,0 +1,73 @@
+{
+  "session_id": "session_fdf68488",
+  "record_id": "rec_07dad292",
+  "full_response": {
+    "agent": "recorder_agent",
+    "success": true,
+    "message": "已成功完成情绪记录",
+    "timestamp": 1767762147.802508,
+    "session_id": "session_fdf68488",
+    "record_id": "rec_07dad292",
+    "structured_data": {
+      "situation": "负责的重要项目/考试未能达到预期目标，受到质疑或自我否定",
+      "automatic_thoughts": [
+        "我能力不足，什么都做不好",
+        "这次失败证明我不行",
+        "我的未来没希望了"
+      ],
+      "emotions": [
+        {
+          "type": "忧",
+          "intensity": 8
+        },
+        {
+          "type": "思",
+          "intensity": 7
+        },
+        {
+          "type": "恐",
+          "intensity": 6
+        }
+      ],
+      "physical_sensations": [
+        "胸闷",
+        "头痛",
+        "胃部紧张",
+        "失眠"
+      ],
+      "conversation_summary": "用户因工作/学业受挫感到强烈自我怀疑和焦虑"
+    },
+    "llm_response": "我听到你在学习/工作中遇到了挫折，感到非常沮丧和自我怀疑。这一定很有压力。",
+    "next_action": "trigger_analyst",
+    "processing_time": 0.028710365295410156
+  },
+  "structured_data": {
+    "situation": "负责的重要项目/考试未能达到预期目标，受到质疑或自我否定",
+    "automatic_thoughts": [
+      "我能力不足，什么都做不好",
+      "这次失败证明我不行",
+      "我的未来没希望了"
+    ],
+    "emotions": [
+      {
+        "type": "忧",
+        "intensity": 8
+      },
+      {
+        "type": "思",
+        "intensity": 7
+      },
+      {
+        "type": "恐",
+        "intensity": 6
+      }
+    ],
+    "physical_sensations": [
+      "胸闷",
+      "头痛",
+      "胃部紧张",
+      "失眠"
+    ],
+    "conversation_summary": "用户因工作/学业受挫感到强烈自我怀疑和焦虑"
+  }
+}

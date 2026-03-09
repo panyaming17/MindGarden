@@ -1,0 +1,14 @@
+授权码：ejvovnzosbxndebb
+
+我的邮箱地址：2771247593@qq.com 或者 pym18074924279@qq.com
+
+SMTP服务器信息：
+服务器地址：smtp.qq.com
+
+端口：
+
+使用SSL加密：465 
+
+使用TLS加密（推荐）：587 
+
+安全连接：需要开启（SSL或TLS
