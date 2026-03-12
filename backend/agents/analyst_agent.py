@@ -27,6 +27,9 @@ class AnalystAgent(BaseAgent):
         # 性能监控
         self.analysis_count = 0
         self.total_analysis_time = 0.0
+        
+        # 从RuleEngine获取CBT规则
+        self.cbt_rules = self.rule_engine.cbt_rules
     
     async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """执行分析任务"""
@@ -137,19 +140,19 @@ class AnalystAgent(BaseAgent):
             distortions_detected=[
                 DistortionItem(
                     distortion_type=distortion.get("type", "未知类型"),
-                    matched_thought=thought.get("thought", ""),
+                    matched_thought=thought.get("original_thought", ""),
                     evidence=distortion.get("evidence", ""),
-                    challenge_question=distortion.get("challenge_question")
+                    challenge_question=self.cbt_rules.get(distortion.get("type"), {}).get("challenge_template")
                 )
                 for thought in analysis_results["cbt"]
                 for distortion in thought.get("distortions", [])
             ],
             summary=self._summarize_cbt_findings(analysis_results["cbt"]),
             challenge_questions=[
-                distortion.get("challenge_question")
+                self.cbt_rules.get(distortion.get("type"), {}).get("challenge_template")
                 for thought in analysis_results["cbt"]
                 for distortion in thought.get("distortions", [])
-                if distortion.get("challenge_question")
+                if self.cbt_rules.get(distortion.get("type"), {}).get("challenge_template")
             ]
         )
         
@@ -245,11 +248,13 @@ class AnalystAgent(BaseAgent):
         for thought_analysis in cbt_results:
             distortions = thought_analysis.get("distortions", [])
             for distortion in distortions:
-                # 直接使用字符串类型，假设RuleEngine返回的是字符串
+                # 处理枚举类型
                 d_type = distortion.get("type", "未知类型")
-                if isinstance(d_type, str):  # 如果是字符串
-                    distortion_counts[d_type] = distortion_counts.get(d_type, 0) + 1
-                # 如果RuleEngine返回的是枚举，这里可能需要调整
+                if hasattr(d_type, "value"):
+                    d_type_str = d_type.value
+                else:
+                    d_type_str = str(d_type)
+                distortion_counts[d_type_str] = distortion_counts.get(d_type_str, 0) + 1
         
         if not distortion_counts:
             return "检测到自动思维，但未明确归类认知扭曲类型。"

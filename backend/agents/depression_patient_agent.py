@@ -114,7 +114,7 @@ class DepressionPatientAgent(BaseAgent):
 {{history}}
 
 现在记录师对你说：{{input}}
-请以抑郁症患者的身份，自然地回复记录师。只输出你的回复内容，不要添加任何解释或标记。"""
+请以抑郁症患者的身份，自然地回复记录师的问题。只输出你的回复内容，不要添加任何解释或标记。"""
         return prompt
 
     async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:

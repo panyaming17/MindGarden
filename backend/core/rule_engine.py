@@ -34,28 +34,50 @@ class RuleEngine:
         """初始化中医情志相胜规则库"""
         self.tcm_rules = {
             EmotionType.ANGER: {
+                "dominant_emotion": "怒",
+                "keywords": ["生气", "愤怒", "暴怒", "恼火", "气愤"],
                 "affected_zang": "肝",
-                "generating_emotion": "怒",
+                "common_patterns": ["肝郁气滞", "肝火上炎", "肝阳上亢"],
                 "inhibiting_emotion": "悲",  # 悲胜怒
-                "physiological_effects": ["胁痛", "目赤", "头痛"],
-                "interventions": [
-                    {"type": "音乐", "suggestion": "听商音（属金）音乐"},
-                    {"type": "呼吸", "suggestion": "6秒吸气，8秒呼气法"},
-                    {"type": "动作", "suggestion": "舒展肝胆经的拉伸"}
-                ]
+                "behavioral_adjustment": ["听商音（属金）音乐", "6秒吸气，8秒呼气法", "舒展肝胆经的拉伸"],
+                "other_suggestions": ["避免辛辣刺激食物", "保持充足睡眠"]
             },
             EmotionType.WORRY: {
+                "dominant_emotion": "忧",
+                "keywords": ["担忧", "焦虑", "忧虑", "担心", "发愁"],
                 "affected_zang": "肺",
-                "generating_emotion": "忧",
+                "common_patterns": ["肺气虚", "肺气郁", "肺阴虚"],
                 "inhibiting_emotion": "喜",  # 喜胜忧
-                "physiological_effects": ["气短", "咳嗽", "乏力"],
-                "interventions": [
-                    {"type": "音乐", "suggestion": "听徵音（属火）音乐"},
-                    {"type": "呼吸", "suggestion": "腹式呼吸，想象红色能量"},
-                    {"type": "动作", "suggestion": "开怀大笑练习"}
-                ]
+                "behavioral_adjustment": ["听徵音（属火）音乐", "腹式呼吸，想象红色能量", "开怀大笑练习"],
+                "other_suggestions": ["多吃润肺食物", "适当运动"]
+            },
+            EmotionType.PENSIVE: {
+                "dominant_emotion": "思",
+                "keywords": ["思考", "思虑", "沉思", "冥想", "琢磨"],
+                "affected_zang": "脾",
+                "common_patterns": ["脾虚", "心脾两虚", "脾胃不和"],
+                "inhibiting_emotion": "怒",  # 怒胜思
+                "behavioral_adjustment": ["听角音（属木）音乐", "轻度运动", "户外活动"],
+                "other_suggestions": ["饮食规律", "避免过度思虑"]
+            },
+            EmotionType.JOY: {
+                "dominant_emotion": "喜",
+                "keywords": ["高兴", "快乐", "喜悦", "开心", "兴奋"],
+                "affected_zang": "心",
+                "common_patterns": ["心火亢盛", "心阴不足", "心脾两虚"],
+                "inhibiting_emotion": "恐",  # 恐胜喜
+                "behavioral_adjustment": ["听羽音（属水）音乐", "平静呼吸", "避免过度兴奋"],
+                "other_suggestions": ["保持情绪稳定", "充足休息"]
+            },
+            EmotionType.FEAR: {
+                "dominant_emotion": "恐",
+                "keywords": ["害怕", "恐惧", "担忧", "惊慌", "紧张"],
+                "affected_zang": "肾",
+                "common_patterns": ["肾虚", "肾阴不足", "肾阳虚"],
+                "inhibiting_emotion": "思",  # 思胜恐
+                "behavioral_adjustment": ["听宫音（属土）音乐", "深呼吸", "冥想放松"],
+                "other_suggestions": ["适当补肾食物", "规律作息"]
             }
-            # 其他情志类型...
         }
     
     def _init_keyword_patterns(self):
@@ -124,14 +146,18 @@ class RuleEngine:
                 "type": emotion_type.value,
                 "intensity": dominant_emotion["intensity"],
                 "affected_zang": rule.get("affected_zang", ""),
-                "physiological_risks": rule.get("physiological_effects", [])
+                "common_patterns": rule.get("common_patterns", [])
             },
             "tcm_relationships": {
                 "generating": generating_cycle,   # 相生
                 "controlling": controlling_cycle, # 相克
                 "inhibiting_emotion": rule.get("inhibiting_emotion", "")  # 相胜
             },
-            "recommended_interventions": rule.get("interventions", [])
+            "recommended_interventions": {
+                "behavioral_adjustment": rule.get("behavioral_adjustment", []),
+                "other_suggestions": rule.get("other_suggestions", [])
+            },
+            "keywords": rule.get("keywords", [])
         }
     
     def _get_generating_cycle(self, emotion: EmotionType) -> Dict:
@@ -176,8 +202,9 @@ class RuleEngine:
         # 中医部分
         if tcm_results.get("dominant_emotion"):
             emotion = tcm_results["dominant_emotion"]["type"]
+            zang = tcm_results["dominant_emotion"]["affected_zang"]
             inhibiting = tcm_results["tcm_relationships"]["inhibiting_emotion"]
-            framework_parts.append(f"情志调理：主导情志为{emotion}，适用{inhibiting}胜{emotion}原则")
+            framework_parts.append(f"情志调理：主导情志为{emotion}，伤及{zang}，适用{inhibiting}胜{emotion}原则")
         
         # 融合建议
         if framework_parts:

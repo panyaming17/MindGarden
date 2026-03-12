@@ -29,6 +29,7 @@ app.include_router(auth_endpoints.router)
 app.include_router(admin_endpoints.router)
 app.include_router(rule_endpoints.router)
 app.include_router(dialogue_endpoints.router)
+app.include_router(dialogue_endpoints.conversations_router)
 
 @app.get("/")
 async def root():

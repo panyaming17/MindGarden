@@ -3,13 +3,17 @@
 """
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
-from typing import Dict, Any, List
-from pydantic import BaseModel
+from typing import Dict, Any, List, Optional
+from pydantic import BaseModel, Field
+import uuid
+from datetime import datetime
 
 from backend.agents import AnalystAgent, TherapistAgent, DepressionPatientAgent
 from backend.api.auth_endpoints import get_db
+from backend.core.database import ConversationDB, MessageDB
 
 router = APIRouter(prefix="/api/dialogue", tags=["dialogue"])
+conversations_router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
 
 class DialogueRequest(BaseModel):
@@ -49,6 +53,26 @@ therapist_agent = TherapistAgent()
 
 # 对话历史存储
 conversation_histories = {}
+
+# 会话测试状态存储
+session_test_states = {}
+
+
+from pydantic import BaseModel, Field
+
+class StartTestRequest(BaseModel):
+    """开始测试请求模型"""
+    session_id: str = Field(..., description="对话会话ID")
+
+
+class PauseTestRequest(BaseModel):
+    """暂停测试请求模型"""
+    session_id: str = Field(..., description="对话会话ID")
+
+
+class CreateConversationRequest(BaseModel):
+    """创建会话请求模型"""
+    type: str = Field(..., description="会话类型")
 
 
 @router.post("/patient", response_model=DialogueResponse)
@@ -99,7 +123,15 @@ async def multi_agent_dialogue(
         if request.patient_id not in conversation_histories:
             conversation_histories[request.patient_id] = []
         
-        # 2. 患者响应
+        # 2. 添加记录师的初始提问
+        recorder_message = "您好，我是您的记录师。请告诉我您最近的情绪状态和遇到的问题，我会帮您记录并分析。"
+        conversation_histories[request.patient_id].append({
+            "role": "recorder",
+            "message": recorder_message,
+            "timestamp": 0
+        })
+        
+        # 3. 患者响应
         patient_result = await patient_agent.execute({
             "message_type": "greeting",
             "context": request.patient_message
@@ -149,6 +181,11 @@ async def multi_agent_dialogue(
                 "role": "therapist",
                 "message": therapist_result.get("suggestion_summary", {}),
                 "timestamp": therapist_result.get("processing_time", 0)
+            },
+            {
+                "role": "recorder",
+                "message": "感谢您的分享。我们已经完成了分析和调理建议的生成。如果您有任何其他问题，请随时告诉我。",
+                "timestamp": 0
             }
         ])
         
@@ -198,3 +235,270 @@ async def clear_conversation_history(
     return {
         "message": "对话历史已清除"
     }
+
+
+@conversations_router.post("/start-test")
+async def start_test(
+    request: StartTestRequest
+):
+    """
+    启动对话测试流程
+    """
+    try:
+        # 验证请求参数
+        if not request.session_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="session_id 不能为空"
+            )
+        
+        # 检查会话状态
+        if request.session_id in session_test_states:
+            current_state = session_test_states[request.session_id].get("status")
+            if current_state == "testing":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="测试已在进行中"
+                )
+        else:
+            # 新会话，初始化状态为idle
+            session_test_states[request.session_id] = {
+                "status": "idle",
+                "test_id": None,
+                "start_time": None,
+                "pause_time": None,
+                "current_phase": "recorder"
+            }
+        
+        # 生成测试ID
+        test_id = f"test_{uuid.uuid4().hex[:8]}"
+        start_time = datetime.utcnow().isoformat()
+        
+        # 更新会话状态
+        session_test_states[request.session_id].update({
+            "status": "testing",
+            "test_id": test_id,
+            "start_time": start_time,
+            "pause_time": None,
+            "current_phase": "recorder"
+        })
+        
+        # 初始化对话历史
+        if request.session_id not in conversation_histories:
+            conversation_histories[request.session_id] = []
+        
+        # 启动测试流程（这里可以添加实际的测试逻辑）
+        # 例如：开始定时发送患者消息和系统回复
+        
+        return {
+            "status": "success",
+            "message": "测试已成功开始",
+            "data": {
+                "session_id": request.session_id,
+                "status": "testing",
+                "start_time": start_time
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"开始测试失败: {str(e)}"
+        )
+
+
+@conversations_router.post("/pause-test")
+async def pause_test(
+    request: PauseTestRequest
+):
+    """
+    暂停对话测试流程
+    """
+    try:
+        # 验证请求参数
+        if not request.session_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="session_id 不能为空"
+            )
+        
+        # 检查会话状态
+        if request.session_id not in session_test_states:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="会话不存在"
+            )
+        
+        current_state = session_test_states[request.session_id].get("status")
+        if current_state != "testing":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="会话未处于测试状态"
+            )
+        
+        # 更新会话状态
+        pause_time = datetime.utcnow().isoformat()
+        
+        session_test_states[request.session_id].update({
+            "status": "paused",
+            "pause_time": pause_time
+        })
+        
+        # 暂停测试流程（这里可以添加实际的暂停逻辑）
+        # 例如：停止定时发送消息
+        
+        return {
+            "status": "success",
+            "message": "测试已成功暂停",
+            "data": {
+                "session_id": request.session_id,
+                "status": "paused",
+                "pause_time": pause_time
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"暂停测试失败: {str(e)}"
+        )
+
+
+@conversations_router.post("/create")
+async def create_conversation(
+    request: CreateConversationRequest
+):
+    """
+    创建对话会话
+    """
+    try:
+        # 验证请求参数
+        if not request.type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="会话类型不能为空"
+            )
+        
+        # 生成会话ID
+        session_id = f"sess_{uuid.uuid4().hex[:8]}"
+        
+        # 初始化会话状态
+        session_test_states[session_id] = {
+            "status": "idle",
+            "test_id": None,
+            "start_time": None,
+            "pause_time": None,
+            "current_phase": "recorder"
+        }
+        
+        # 初始化对话历史
+        conversation_histories[session_id] = []
+        
+        return {
+            "session_id": session_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"创建会话失败: {str(e)}"
+        )
+
+
+class SaveHistoryRequest(BaseModel):
+    """保存对话历史请求模型"""
+    session_id: Optional[str] = None
+    patient_id: Optional[str] = None
+    title: str = Field(..., description="对话标题")
+    user_id: str = Field(..., description="用户ID")
+
+
+@router.post("/save-history")
+async def save_conversation_history(
+    request: SaveHistoryRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    保存对话历史到数据库
+    """
+    try:
+        # 确定使用哪个ID作为对话历史的键
+        history_key = request.session_id if request.session_id else request.patient_id
+        
+        if not history_key:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="session_id或patient_id至少需要提供一个"
+            )
+        
+        # 检查对话历史是否存在
+        if history_key not in conversation_histories:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="对话历史不存在"
+            )
+        
+        # 获取对话历史
+        history = conversation_histories[history_key]
+        
+        if not history:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="对话历史为空"
+            )
+        
+        # 创建对话记录
+        conversation_id = f"conv_{uuid.uuid4().hex[:8]}"
+        conversation = ConversationDB(
+            id=conversation_id,
+            user_id=request.user_id,
+            title=request.title,
+            timestamp=datetime.utcnow(),
+            current_phase="completed",
+            active_step=len(history),
+            current_role="system"
+        )
+        db.add(conversation)
+        
+        # 创建消息记录
+        for msg in history:
+            message = MessageDB(
+                id=f"msg_{uuid.uuid4().hex[:8]}",
+                conversation_id=conversation_id,
+                type="assistant" if msg["role"] != "patient" else "user",
+                role=msg["role"],
+                content=str(msg["message"]),
+                timestamp=datetime.utcnow()
+            )
+            db.add(message)
+        
+        # 提交事务
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": "对话历史保存成功",
+            "data": {
+                "conversation_id": conversation_id,
+                "message_count": len(history)
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"保存对话历史失败: {str(e)}"
+        )
+
+
+# 导出路由
+__all__ = ["router", "conversations_router"]

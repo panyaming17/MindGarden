@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from backend.core.database import DBConfig, UserDB, AuditLog
 from backend.core.data_models import User, AuditLog as AuditLogModel, AuditLogListResponse
 from backend.core.audit_service import AuditService
-from backend.api.auth_endpoints import get_current_user, get_db
+from backend.api.auth_endpoints import get_current_user, get_db, get_password_hash
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -28,6 +28,14 @@ class UserUpdateAdmin(BaseModel):
     """用户更新请求模型（管理员用）"""
     is_active: Optional[bool] = None
     role: Optional[str] = None
+
+# 管理员创建用户请求模型
+class UserCreateAdmin(BaseModel):
+    """用户创建请求模型（管理员用）"""
+    username: str
+    email: str
+    password: str
+    role: str = "user"
 
 # 用户列表响应模型
 class UserListResponse(BaseModel):
@@ -247,6 +255,85 @@ async def delete_user(
     )
     
     return {"message": "用户删除成功"}
+
+# 创建用户接口
+@router.post("/users", response_model=User, status_code=status.HTTP_201_CREATED)
+async def create_user(
+    user_data: UserCreateAdmin,
+    current_admin: UserDB = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    创建用户
+    - 仅管理员可访问
+    - 支持创建普通用户和管理员
+    - 超级管理员可创建超级管理员
+    """
+    # 检查用户名是否已存在
+    existing_user = db.query(UserDB).filter(UserDB.username == user_data.username).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="用户名已存在"
+        )
+    
+    # 检查邮箱是否已被注册
+    existing_email = db.query(UserDB).filter(UserDB.email == user_data.email).first()
+    if existing_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="邮箱已被注册"
+        )
+    
+    # 权限检查：非超级管理员不能创建超级管理员
+    if user_data.role == "super_admin" and current_admin.role != "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="权限不足，无法创建超级管理员"
+        )
+    
+    # 创建新用户
+    import uuid
+    user_id = f"user_{uuid.uuid4().hex[:8]}"
+    hashed_password = get_password_hash(user_data.password)
+    
+    new_user = UserDB(
+        id=user_id,
+        username=user_data.username,
+        email=user_data.email,
+        password_hash=hashed_password,
+        is_active=True,
+        role=user_data.role
+    )
+    
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    # 记录审计日志
+    AuditService.log_action(
+        db=db,
+        admin_id=current_admin.id,
+        action="create",
+        target_type="user",
+        target_id=user_id,
+        details={
+            "username": user_data.username,
+            "email": user_data.email,
+            "role": user_data.role
+        }
+    )
+    
+    # 转换为响应模型
+    return User(
+        id=new_user.id,
+        username=new_user.username,
+        email=new_user.email,
+        is_active=new_user.is_active,
+        role=new_user.role,
+        created_at=new_user.created_at,
+        updated_at=new_user.updated_at
+    )
 
 # 获取审计日志列表
 @router.get("/logs/audit", response_model=AuditLogListResponse)
