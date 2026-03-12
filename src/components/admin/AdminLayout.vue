@@ -57,8 +57,10 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const pageTitle = ref('用户管理')
-const userName = ref('管理员')
+const pageTitle = ref('后台管理系统')
+// 获取管理员的用户名和角色
+const userName = ref('')
+const userRole = ref('')
 
 // 计算当前路由
 const currentRoute = computed(() => {
@@ -84,7 +86,14 @@ onMounted(() => {
   if (storedUser) {
     try {
       const user = JSON.parse(storedUser)
-      userName.value = user.name || '管理员'
+      // 根据角色设置显示文本
+      if (user.role === 'super_admin') {
+        userRole.value = '超级管理员'
+      } else if (user.role === 'admin') {
+        userRole.value = '管理员'
+      }
+      // 显示用户名和角色
+      userName.value = `${user.username || '管理员'} ${userRole.value}`
     } catch (error) {
       console.error('Failed to parse user data:', error)
     }

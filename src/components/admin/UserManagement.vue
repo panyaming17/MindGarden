@@ -12,6 +12,7 @@
         >
         <button class="search-button" @click="handleSearch">搜索</button>
       </div>
+      <button class="add-button" @click="openAddDialog">添加用户</button>
     </div>
     
     <!-- 用户列表 -->
@@ -118,7 +119,6 @@
             >
               <option value="user">普通用户</option>
               <option value="admin">管理员</option>
-              <option value="super_admin" v-if="isSuperAdmin">超级管理员</option>
             </select>
           </div>
           <div class="form-group">
@@ -132,6 +132,62 @@
         <div class="dialog-footer">
           <button class="cancel-button" @click="closeEditDialog">取消</button>
           <button class="save-button" @click="saveUser">保存</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 添加用户对话框 -->
+    <div v-if="isAddDialogVisible" class="dialog-overlay" @click="closeAddDialog">
+      <div class="dialog-content" @click.stop>
+        <div class="dialog-header">
+          <h3>添加用户</h3>
+          <button class="close-button" @click="closeAddDialog">×</button>
+        </div>
+        <div class="dialog-body">
+          <div class="form-group">
+            <label>用户名</label>
+            <input 
+              type="text" 
+              v-model="addForm.username" 
+              class="form-input"
+              placeholder="请输入用户名（中文或字母）"
+              @input="validateAddUsername"
+            >
+            <div v-if="addErrors.username" class="error-message">{{ addErrors.username }}</div>
+          </div>
+          <div class="form-group">
+            <label>邮箱</label>
+            <input 
+              type="email" 
+              v-model="addForm.email" 
+              class="form-input"
+              placeholder="请输入邮箱"
+              @input="validateAddEmail"
+            >
+            <div v-if="addErrors.email" class="error-message">{{ addErrors.email }}</div>
+          </div>
+          <div class="form-group">
+            <label>密码</label>
+            <input 
+              type="password" 
+              v-model="addForm.password" 
+              class="form-input"
+              placeholder="请输入密码（字母和数字组合，至少6位）"
+              @input="validateAddPassword"
+            >
+            <div v-if="addErrors.password" class="error-message">{{ addErrors.password }}</div>
+          </div>
+          <div class="form-group">
+            <label>角色</label>
+            <select v-model="addForm.role" class="form-select">
+              <option value="user">普通用户</option>
+              <option value="admin">管理员</option>
+            </select>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="cancel-button" @click="closeAddDialog">取消</button>
+          <button class="save-button" @click="createUser">创建</button>
         </div>
       </div>
     </div>
@@ -149,6 +205,7 @@ const perPage = ref(10)
 const total = ref(0)
 const searchQuery = ref('')
 const isEditDialogVisible = ref(false)
+const isAddDialogVisible = ref(false)
 const currentUser = ref(null)
 const isSuperAdmin = ref(false)
 const canChangeRole = ref(true)
@@ -159,6 +216,21 @@ const editForm = ref({
   email: '',
   role: '',
   is_active: true
+})
+
+// 添加用户表单数据
+const addForm = ref({
+  username: '',
+  email: '',
+  password: '',
+  role: 'user'
+})
+
+// 添加用户错误信息
+const addErrors = ref({
+  username: '',
+  email: '',
+  password: ''
 })
 
 // API基础URL
@@ -188,7 +260,7 @@ const formatDate = (dateString) => {
 
 // 检查是否可以编辑用户
 const canEditUser = (user) => {
-  if (user.role === 'super_admin' && !isSuperAdmin.value) {
+  if (user.role === 'super_admin') {//这里的判断条件是：如果用户是超级管理员则不能编辑
     return false
   }
   return true
@@ -196,7 +268,7 @@ const canEditUser = (user) => {
 
 // 检查是否可以删除用户
 const canDeleteUser = (user) => {
-  if (user.role === 'super_admin' && !isSuperAdmin.value) {
+  if (user.role === 'super_admin') {
     return false
   }
   return true
@@ -281,7 +353,7 @@ const editUser = (user) => {
     role: user.role,
     is_active: user.is_active
   }
-  canChangeRole.value = !(user.role === 'super_admin' && !isSuperAdmin.value)
+  canChangeRole.value = !(user.role === 'super_admin' || user.role === 'admin')
   isEditDialogVisible.value = true
 }
 
@@ -384,6 +456,121 @@ const checkUserRole = () => {
   }
 }
 
+// 打开添加用户对话框
+const openAddDialog = () => {
+  // 重置表单
+  addForm.value = {
+    username: '',
+    email: '',
+    password: '',
+    role: 'user'
+  }
+  // 重置错误信息
+  addErrors.value = {
+    username: '',
+    email: '',
+    password: ''
+  }
+  isAddDialogVisible.value = true
+}
+
+// 关闭添加用户对话框
+const closeAddDialog = () => {
+  isAddDialogVisible.value = false
+}
+
+// 验证添加用户的用户名
+const validateAddUsername = () => {
+  const username = addForm.value.username.trim()
+  if (!username) {
+    addErrors.value.username = '请输入用户名'
+  } else if (!/^[\u4e00-\u9fa5a-zA-Z]+$/.test(username)) {
+    addErrors.value.username = '用户名只能包含中文或字母'
+  } else {
+    addErrors.value.username = ''
+  }
+}
+
+// 验证添加用户的邮箱
+const validateAddEmail = () => {
+  const email = addForm.value.email.trim()
+  if (!email) {
+    addErrors.value.email = '请输入邮箱'
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    addErrors.value.email = '请输入有效的邮箱地址'
+  } else {
+    addErrors.value.email = ''
+  }
+}
+
+// 验证添加用户的密码
+const validateAddPassword = () => {
+  const password = addForm.value.password
+  if (!password) {
+    addErrors.value.password = '请输入密码'
+  } else if (password.length < 6) {
+    addErrors.value.password = '密码长度至少为6位'
+  } else if (!/(?=.*[a-zA-Z])(?=.*\d)/.test(password)) {
+    addErrors.value.password = '密码必须包含字母和数字'
+  } else {
+    addErrors.value.password = ''
+  }
+}
+
+// 创建用户
+const createUser = async () => {
+  // 验证所有字段
+  validateAddUsername()
+  validateAddEmail()
+  validateAddPassword()
+  
+  // 检查是否有错误
+  if (addErrors.value.username || addErrors.value.email || addErrors.value.password) {
+    return
+  }
+
+  try {
+    const token = localStorage.getItem('access_token')
+    if (!token) {
+      ElMessage.error('未登录或登录已过期')
+      return
+    }
+
+    const url = `${API_BASE_URL}/api/admin/users`
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: addForm.value.username,
+        email: addForm.value.email,
+        password: addForm.value.password,
+        role: addForm.value.role
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || '创建用户失败')
+    }
+
+    ElMessage.success('用户创建成功')
+    closeAddDialog()
+    loadUsers()
+  } catch (error) {
+    console.error('Error creating user:', error)
+    ElMessage.error(error.message || '创建用户失败')
+    // 仅在开发环境使用模拟数据
+    if (import.meta.env.DEV) {
+      ElMessage.success('模拟创建成功')
+      closeAddDialog()
+      loadUsers()
+    }
+  }
+}
+
 // 初始化
 onMounted(() => {
   checkUserRole()
@@ -402,11 +589,16 @@ onMounted(() => {
 /* 搜索和筛选 */
 .user-filters {
   margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .search-box {
   display: flex;
   gap: 10px;
+  flex: 1;
+  max-width: 500px;
 }
 
 .search-input {
@@ -417,18 +609,30 @@ onMounted(() => {
   font-size: 14px;
 }
 
-.search-button {
+.search-button, .add-button {
   padding: 10px 20px;
-  background-color: #007bff;
-  color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.3s ease;
 }
 
+.search-button {
+  background-color: #007bff;
+  color: white;
+}
+
 .search-button:hover {
   background-color: #0069d9;
+}
+
+.add-button {
+  background-color: #28a745;
+  color: white;
+}
+
+.add-button:hover {
+  background-color: #218838;
 }
 
 /* 用户列表 */
@@ -605,6 +809,15 @@ onMounted(() => {
   margin-bottom: 15px;
 }
 
+/* 错误信息样式 */
+.error-message {
+  font-size: 12px;
+  color: #F56C6C;
+  margin-top: 4px;
+  min-height: 16px;
+  line-height: 16px;
+}
+
 .form-group label {
   display: block;
   margin-bottom: 5px;
@@ -668,6 +881,17 @@ onMounted(() => {
 @media (max-width: 768px) {
   .user-management {
     padding: 15px;
+  }
+  
+  .user-filters {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .search-box {
+    width: 100%;
+    max-width: none;
   }
   
   .user-table th,

@@ -96,11 +96,13 @@ const scrollToBottom = async () => {
   await nextTick()
   if (chatContentRef.value) {
     chatContentRef.value.scrollTop = chatContentRef.value.scrollHeight
+    console.log('scrollTop:', chatContentRef.value.scrollTop)
+    console.log('scrollHeight:', chatContentRef.value.scrollHeight)
   }
 }
 
 // 监听消息变化，自动滚动到底部
-watch(() => messages.length, () => {
+watch(() => messages.value.length, () => {
   scrollToBottom()
 })
 

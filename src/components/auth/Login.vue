@@ -607,11 +607,14 @@ const handleLogin = async () => {
   
     // 保存token到localStorage，并设置过期时间（24小时）
     localStorage.setItem('access_token', data.access_token)
-    // 合并后端返回的用户信息和用户选择的角色
+    // 使用后端返回的用户信息，包括角色
     const userWithRole = {
-      ...data.user,
-      role: loginForm.role
+      ...data.user
+      // 移除角色覆盖，使用后端返回的角色信息
     }
+    // 打印后端返回的参数到控制台
+    console.log('登录接口返回的参数:', data)
+    console.log('保存到localStorage的用户信息:', userWithRole)
     localStorage.setItem('user', JSON.stringify(userWithRole))
     const tokenExpiry = Date.now() + 24 * 60 * 60 * 1000 // 24小时过期
     localStorage.setItem('token_expiry', tokenExpiry.toString())
@@ -624,7 +627,7 @@ const handleLogin = async () => {
     if (storedUser) {
       try {
         const user = JSON.parse(storedUser)
-        if (user.role === 'super-admin' || user.role === 'admin') {
+        if (user.role === 'super_admin' || user.role === 'admin') {
           // 跳转到后台页面
           router.push('/admin')
         } else {

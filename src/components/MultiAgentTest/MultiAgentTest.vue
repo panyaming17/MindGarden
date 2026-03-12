@@ -23,10 +23,13 @@
         <div class="chat-input-fixed">
           <ChatInput 
             :is-loading="isAnalyzing || isProcessing"
+            :is-testing="isTesting"
             :placeholder="inputPlaceholder"
             @send-message="sendMessage"
             @start-new-chat="startNewChat"
             @end-chat="endChat"
+            @start-test="startTest"
+            @pause-test="pauseTest"
           />
         </div>
       </div>
@@ -38,7 +41,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import ChatMessages from '../chat/ChatMessages/ChatMessages.vue'
-import ChatInput from '../chat/ChatInput.vue'
+import ChatInput from './ChatInput.vue'
 import StepsState from '../chat/StepsState.vue'
 import { Loading } from '@element-plus/icons-vue'
 
@@ -59,9 +62,26 @@ const messages = ref([])
 const currentRole = ref('记录师')
 const isAnalyzing = ref(false)
 const isProcessing = ref(false)
+const isTesting = ref(false)
 const connectionStatus = ref('connected')
 const activeStep = ref(0) // 0: 记录, 1: 分析, 2: 建议
 const chatContentRef = ref(null)
+
+// 存储所有的 setTimeout ID
+const timeoutIds = ref([])
+
+// 添加定时器并存储ID
+const addTimeout = (callback, delay) => {
+  const id = setTimeout(callback, delay)
+  timeoutIds.value.push(id)
+  return id
+}
+
+// 清除所有定时器
+const clearAllTimeouts = () => {
+  timeoutIds.value.forEach(id => clearTimeout(id))
+  timeoutIds.value = []
+}
 
 // 监听对话数据变化
 watch(() => props.conversationData, (newData) => {
@@ -100,7 +120,7 @@ const scrollToBottom = async () => {
 }
 
 // 监听消息变化，自动滚动到底部
-watch(() => messages.length, () => {
+watch(() => messages.value.length, () => {
   scrollToBottom()
 })
 
@@ -192,7 +212,7 @@ const autoSendPatientMessage = async (messageType = 'greeting') => {
   await sendMessage(patientMessage)
   
   // 等待一段时间后自动发送后续消息
-  setTimeout(async () => {
+  addTimeout(async () => {
     if (sessionData.currentPhase === 'recorder') {
       await autoSendPatientMessage('response_to_analysis')
     }
@@ -201,7 +221,7 @@ const autoSendPatientMessage = async (messageType = 'greeting') => {
 
 // 处理记录师对话
 const handleRecorderConversation = async (content) => {
-  isProcessing.value = true
+  isProcessing.value = true  // 记录师对话处理中
   try {
     const response = await fetch(`${API_BASE_URL}/recorder/converse`, {
       method: 'POST',
@@ -288,7 +308,7 @@ const triggerAnalysis = async () => {
       await getAnalysisReport()
     } else {
       // 模拟分析完成（实际项目中可能需要轮询或等待回调）
-      setTimeout(async () => {
+      addTimeout(async () => {
         // 假设分析完成，获取报告
         await getAnalysisReport()
       }, 3000)
@@ -335,7 +355,7 @@ const getAnalysisReport = async () => {
     messages.value.push(analystMsg)
     
     // 延迟发送患者对分析结果的响应
-    setTimeout(async () => {
+    addTimeout(async () => {
       const patientResponse = await generatePatientMessage('response_to_analysis')
       const userMsg = {
         id: Date.now(),
@@ -401,7 +421,7 @@ const generateTherapyPlan = async () => {
     await getTherapyStrategies()
     
     // 延迟发送患者对调理方案的响应
-    setTimeout(async () => {
+    addTimeout(async () => {
       const patientResponse = await generatePatientMessage('response_to_suggestion')
       const userMsg = {
         id: Date.now(),
@@ -412,7 +432,7 @@ const generateTherapyPlan = async () => {
       messages.value.push(userMsg)
       
       // 延迟发送患者的后续问题
-      setTimeout(async () => {
+      addTimeout(async () => {
         const patientFollowUp = await generatePatientMessage('follow_up')
         const followUpMsg = {
           id: Date.now(),
@@ -499,6 +519,111 @@ const startNewChat = () => {
   messages.value.push(welcomeMsg)
 }
 
+// 开始测试
+const startTest = async () => {
+  try {
+    isProcessing.value = true
+    
+    // 检查session_id是否存在，不存在则先创建会话
+    if (!sessionData.sessionId) {
+      // 创建会话
+      try {
+        const createSessionResponse = await fetch(`${API_BASE_URL}/api/conversations/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            type: 'multi-agent'
+          })
+        })
+        
+        if (!createSessionResponse.ok) {
+          throw new Error('创建会话失败')
+        }
+        
+        const sessionDataResponse = await createSessionResponse.json()
+        sessionData.sessionId = sessionDataResponse.session_id
+        console.log('会话创建成功:', sessionDataResponse)
+      } catch (sessionError) {
+        console.error('创建会话失败:', sessionError)
+        alert('创建会话失败，请重试')
+        isProcessing.value = false
+        return
+      }
+    }
+    
+    isTesting.value = true
+    
+    // 调用后端API开始测试
+    const response = await fetch(`${API_BASE_URL}/api/conversations/start-test`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        session_id: sessionData.sessionId
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error('开始测试失败')
+    }
+    
+    const data = await response.json()
+    console.log('开始测试成功:', data)
+    
+    // 开始自动发送患者消息
+    autoSendPatientMessage('greeting')
+    
+    // 显示成功消息
+    alert('测试已成功开始')
+  } catch (error) {
+    console.error('开始测试失败:', error)
+    alert('开始测试失败，请重试')
+    isTesting.value = false
+  } finally {
+    isProcessing.value = false
+  }
+}
+
+// 暂停测试
+const pauseTest = async () => {
+  try {
+    isProcessing.value = true
+    
+    // 清除所有定时器，停止前端自动消息发送
+    clearAllTimeouts()
+    
+    // 调用后端API暂停测试
+    const response = await fetch(`${API_BASE_URL}/api/conversations/pause-test`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        session_id: sessionData.sessionId
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error('暂停测试失败')
+    }
+    
+    const data = await response.json()
+    console.log('暂停测试成功:', data)
+    
+    // 显示成功消息
+    alert('测试已成功暂停')
+    isTesting.value = false
+  } catch (error) {
+    console.error('暂停测试失败:', error)
+    alert('暂停测试失败，请重试')
+  } finally {
+    isProcessing.value = false
+  }
+}
+
 // 结束对话
 const endChat = async () => {
   // 检查是否有报告生成
@@ -524,30 +649,41 @@ const endChat = async () => {
   try {
     isProcessing.value = true
     
-    // 调用后端API结束对话
-    const response = await fetch(`${API_BASE_URL}/api/conversations/end`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        session_id: sessionData.sessionId,
-        record_id: sessionData.recordId,
-        report_id: sessionData.reportId,
-        phase: sessionData.currentPhase,
-        active_step: activeStep.value,
-        save_conversation: hasReport
+    // 清除所有定时器，停止异步操作
+    clearAllTimeouts()
+    
+    // 调用后端API结束对话（即使API调用失败，也继续结束对话）
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/conversations/end`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          session_id: sessionData.sessionId,
+          record_id: sessionData.recordId,
+          report_id: sessionData.reportId,
+          phase: sessionData.currentPhase,
+          active_step: activeStep.value,
+          save_conversation: hasReport
+        })
       })
-    })
-    
-    if (!response.ok) {
-      throw new Error('结束对话失败')
+      
+      if (!response.ok) {
+        console.warn('后端API调用失败，但仍继续结束对话')
+      } else {
+        const data = await response.json()
+        console.log('后端API调用成功:', data)
+      }
+    } catch (apiError) {
+      console.warn('后端API调用出错，但仍继续结束对话:', apiError)
     }
-    
-    const data = await response.json()
     
     // 显示成功消息
     alert('对话已成功结束')
+    
+    // 重置测试状态
+    isTesting.value = false
     
     // 开始新对话
     startNewChat()
@@ -574,11 +710,7 @@ onMounted(() => {
         timestamp: new Date()
       }
     ]
-    
-    // 延迟一秒后自动发送患者消息
-    setTimeout(() => {
-      autoSendPatientMessage('greeting')
-    }, 1000)
+    // 移除自动发送患者消息的逻辑，改为由开始测试按钮触发
   }
 })
 </script>

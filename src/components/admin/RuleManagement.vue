@@ -84,7 +84,7 @@
         <div class="dialog-body">
           <div class="form-group">
             <label>类型</label>
-            <select v-model="ruleForm.type" class="form-select">
+            <select v-model="ruleForm.type" class="form-select" @change="handleTypeChange">
               <option value="cbt">CBT</option>
               <option value="tcm">中医</option>
             </select>
@@ -238,11 +238,13 @@ const loadRules = async () => {
         type: 'tcm',
         name: '肝气郁结',
         content: {
-          emotion: '怒',
-          zang: '肝',
-          intervention: '疏肝理气',
-          herbs: ['柴胡', '郁金', '青皮'],
-          acupoints: ['太冲', '期门', '行间']
+          "dominant_emotion": "思",
+          "keywords": ["思考", "思虑", "沉思", "冥想", "琢磨"],
+          "affected_zang": "脾",
+          "common_patterns": ["脾虚", "心脾两虚", "脾胃不和"],
+          "inhibiting_emotion": "怒",  
+          "behavioral_adjustment": ["听角音（属木）音乐", "轻度运动", "户外活动"],
+          "other_suggestions": ["饮食规律", "避免过度思虑"]
         },
         version: '1.0',
         is_active: true,
@@ -280,7 +282,29 @@ const openAddDialog = () => {
     is_active: true,
     content: ''
   }
+  handleTypeChange()
   isDialogVisible.value = true
+}
+
+// 监听类型变化，设置默认内容模板
+const handleTypeChange = () => {
+  if (ruleForm.value.type === 'tcm') {
+    ruleForm.value.content = JSON.stringify({
+      "keywords": [],
+      "affected_zang": "",
+      "common_patterns": [],
+      "dominant_emotion": "",
+      "other_suggestions": [],
+      "inhibiting_emotion": "",
+      "behavioral_adjustment": []
+    }, null, 2)
+  } else if (ruleForm.value.type === 'cbt') {
+    ruleForm.value.content = JSON.stringify({
+        "examples": [],
+        "strategy": "",
+        "description": ""
+    }, null, 2)
+  }
 }
 
 // 编辑规则
