@@ -61,7 +61,7 @@ const isAnalyzing = ref(false)
 const isProcessing = ref(false)
 const connectionStatus = ref('connected')
 const activeStep = ref(0) // 0: 记录, 1: 分析, 2: 建议
-const chatContentRef = ref(null)
+const chatContentRef = ref(null) // 聊天内容区域引用
 
 // 监听对话数据变化
 watch(() => props.conversationData, (newData) => {
@@ -111,7 +111,7 @@ onMounted(() => {
   scrollToBottom()
 })
 
-// 会话数据
+// 会话数据，这里的数据类型是Object对象
 const sessionData = reactive({
   sessionId: null,
   recordId: null,
@@ -154,9 +154,11 @@ const sendMessage = async (content) => {
       break
     case 'analyst':
       // 分析阶段不需要用户输入，自动处理
+      // await triggerAnalysis()
       break
     case 'therapist':
       // 调理阶段不需要用户输入，自动处理
+      // await triggerTherapy()
       break
   }
 }
@@ -165,7 +167,7 @@ const sendMessage = async (content) => {
 const handleRecorderConversation = async (content) => {
   isProcessing.value = true
   try {
-    const response = await fetch(`${API_BASE_URL}/recorder/converse`, {
+    const response = await fetch(`${API_BASE_URL}/recorder/converse`, { 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -429,7 +431,6 @@ const startNewChat = () => {
 const endChat = async () => {
   // 检查是否有报告生成
   const hasReport = !!sessionData.reportId
-  
   // 弹出确认对话框
   let confirmMessage = ''
   if (activeStep.value === 2) {

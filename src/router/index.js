@@ -26,6 +26,12 @@ const routes = [
     component: () => import('@/components/MultiAgentTest/MultiAgentTest.vue'),
     meta: { requiresAuth: true }
   },
+   {
+    path: '/questionnaire',
+    name: 'questionnaire',
+    component: () => import('@/components/Questionnaire/MentalQuestionnaire.vue'),
+    meta: { requiresAuth: true }
+  },
   {
     path: '/admin',
     name: 'admin',

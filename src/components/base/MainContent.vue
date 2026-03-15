@@ -16,7 +16,10 @@
       <h2>情绪报告</h2>
       <p>这里显示情绪报告内容</p>
     </div>
-    
+    <!-- 问卷自查 -->
+     <div v-else-if="activeFunction === 'questionnaire'" class="questionnaire-content">
+      <Questionnaire/>
+    </div>
     <!-- 多智能体测试对话 -->
     <MultiAgentTest v-else-if="activeFunction === 'multi-agent'" />
   </div>
@@ -27,6 +30,7 @@ import { ref, defineProps, watch } from 'vue'
 import BackGround from './BackGround.vue'
 import ChatApp from '../chat/ChatApp.vue'
 import MultiAgentTest from '../MultiAgentTest/MultiAgentTest.vue'
+import Questionnaire from '../Questionnaire/MentalQuestionnaire.vue'
 
 // 组件属性
 const props = defineProps({
@@ -215,4 +219,14 @@ const props = defineProps({
   color: #666;
   line-height: 1.6;
 }
+
+.questionnaire-content {
+  position: relative;
+  z-index: 1;
+  min-width: 1200px;
+  padding: 10px;
+  border-radius: 8px;
+
+}
+
 </style>

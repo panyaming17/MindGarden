@@ -75,7 +75,15 @@
         <i class="menu-icon chart-icon"></i>
         <span class="menu-text">情绪报告</span>
       </div>
-      
+        <!-- 问卷自查 -->
+      <div 
+        class="menu-item" 
+        :class="{ active: activeItem === 'questionnaire' }" 
+        @click="navigateTo('/questionnaire')"
+      >
+        <i class="menu-icon chart-icon"></i>
+        <span class="menu-text">问卷自查</span>
+      </div>
       <!-- 多智能体测试对话 -->
       <div 
         class="menu-item" 
@@ -162,6 +170,9 @@ export default {
           break
         case '/multi-agent-test':
           activeItem.value = 'multi-agent'
+          break
+        case '/questionnaire':
+          activeItem.value = 'questionnaire'
           break
         default:
           activeItem.value = ''
@@ -346,6 +357,9 @@ export default {
           break
         case '/reports':
           functionName = 'reports'
+          break
+        case '/questionnaire':
+          functionName = 'questionnaire'
           break
         case '/multi-agent-test':
         case 'multi-agent':
