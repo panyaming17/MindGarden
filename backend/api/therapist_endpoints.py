@@ -24,8 +24,8 @@ class SuggestionResponse(BaseModel):
     request_id: str
     status: str
     message: str
-    suggestion_id: str = None  # 建议报告生成完成时返回报告ID
-    estimated_completion_time: int = None
+    suggestion_id: Optional[str] = None  # 建议报告生成完成时返回报告ID
+    estimated_completion_time: Optional[int] = None
 
 @router.post("/suggest", response_model=SuggestionResponse)
 async def request_suggestion(request: SuggestionRequest, background_tasks: BackgroundTasks):
@@ -231,6 +231,26 @@ async def get_performance():
         "metrics": metrics,
         "timestamp": time.time()
     }
+
+class GeneratePlanRequest(BaseModel):
+    report_id: str
+    user_preference: str = "balanced"
+
+@router.post("/generate-plan")
+async def generate_plan(request: GeneratePlanRequest):
+    """生成调理计划"""
+    try:
+        result = await therapist_agent.execute({
+            "report_id": request.report_id,
+            "user_preference": request.user_preference
+        })
+        return {
+            "status": "success",
+            "message": "调理计划生成成功",
+            "data": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成调理计划失败: {str(e)}")
 
 async def process_suggestion_async(request_id: str, report_id: str, callback_url: str = None):
     """异步处理建议报告生成任务"""

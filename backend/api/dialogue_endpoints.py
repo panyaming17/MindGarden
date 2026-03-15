@@ -460,9 +460,11 @@ async def save_conversation_history(
             user_id=request.user_id,
             title=request.title,
             timestamp=datetime.utcnow(),
-            current_phase="completed",
-            active_step=len(history),
-            current_role="system"
+            phase="completed",
+            record_result_id=None,  # 暂时设置为None，实际应用中需要关联真实的报告ID
+            analysis_result_id=None,  # 暂时设置为None，实际应用中需要关联真实的报告ID
+            therapy_result_id=None,  # 暂时设置为None，实际应用中需要关联真实的报告ID
+            context=None  # 暂时设置为None，实际应用中可以存储对话上下文
         )
         db.add(conversation)
         

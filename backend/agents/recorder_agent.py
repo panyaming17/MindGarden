@@ -312,9 +312,9 @@ class RecorderAgent(BaseAgent):
             # 3. 异常处理：记录日志并返回友好的降级回应
             print(f"[记录师Agent] LLM调用失败: {e}")
             # 降级策略：返回一个引导性问题，保证对话不中断
-            return "我这边暂时遇到了一点技术问题。不过没关系，我们可以继续。你刚才说到的感受，身体上有什么特别的觉知吗？"
+            return "我这边暂时遇到了一点技术问题。不过没关系，我们可以继续。你刚才说到的感受，身体上有什么特别的反应吗？"
     
-    def _parse_llm_response(self, llm_response: str) -> tuple[Optional[Dict], str]:
+    def _parse_llm_response(self, llm_response: str) -> tuple[Optional[Dict], str]: #tuple是一个有序的元素集合，这里是一个包含两个元素的元组
         """
         从LLM响应中尝试解析JSON结构化数据。
         返回：(structured_data, text_response)

@@ -224,7 +224,7 @@ class LLMService:
             url,
             headers={"Content-Type": "application/json"},
             json=payload,
-            timeout=aiohttp.ClientTimeout(total=30)
+            timeout=aiohttp.ClientTimeout(total=30) 
         ) as response:
             return await self._parse_baidu_response(response)
     
@@ -304,7 +304,7 @@ _llm_service_instance = None
 
 async def get_llm_service() -> LLMService:
     """获取LLM服务实例（依赖注入友好）"""
-    global _llm_service_instance
+    global _llm_service_instance # 全局变量，用于存储单例实例
     if _llm_service_instance is None:
         _llm_service_instance = LLMService()
         await _llm_service_instance.__aenter__()

@@ -25,8 +25,8 @@ class AnalysisResponse(BaseModel):
     request_id: str
     status: str
     message: str
-    report_id: str = None  # 分析完成时返回报告ID
-    estimated_completion_time: int = None
+    report_id: Optional[str] = None  # 分析完成时返回报告ID
+    estimated_completion_time: Optional[int] = None
 
 @router.post("/analyze", response_model=AnalysisResponse)
 async def request_analysis(request: AnalysisRequest, background_tasks: BackgroundTasks):

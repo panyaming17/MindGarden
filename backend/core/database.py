@@ -85,11 +85,11 @@ class ConversationDB(Base):
     user_id = Column(String(50), nullable=False, index=True)
     title = Column(String(200), nullable=False)
     timestamp = Column(TIMESTAMP, default=datetime.utcnow, index=True)
-    emotion = Column(String(50), nullable=True)
-    cognition_type = Column(String(100), nullable=True)
-    current_phase = Column(String(50), nullable=False, default="recorder")
-    active_step = Column(Integer, nullable=False, default=0)
-    current_role = Column(String(50), nullable=False, default="记录师")
+    phase = Column(String(20), nullable=False, default="recording")
+    record_result_id = Column(String(50), nullable=True)  # 记录报告ID
+    analysis_result_id = Column(String(50), nullable=True)  # 分析报告ID
+    therapy_result_id = Column(String(50), nullable=True)  # 建议报告ID
+    context = Column(JSON, nullable=True)  # 临时上下文
     created_at = Column(TIMESTAMP, default=datetime.utcnow, index=True)
     updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
     
