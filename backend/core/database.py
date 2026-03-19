@@ -1,4 +1,5 @@
-from sqlalchemy import create_engine, Column, String, Text, Float, ForeignKey, TIMESTAMP, JSON, Enum, Integer, UniqueConstraint, Boolean
+from sqlalchemy import create_engine, Column, String, Text, Float, ForeignKey, TIMESTAMP, JSON, Enum, Integer, BigInteger, UniqueConstraint, Boolean, Index
+from sqlalchemy.dialects.mysql import INTEGER
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -81,17 +82,17 @@ class ConversationDB(Base):
     """对话记录表对应的数据库模型"""
     __tablename__ = "conversations"
     
-    id = Column(String(50), primary_key=True)
-    user_id = Column(String(50), nullable=False, index=True)
-    title = Column(String(200), nullable=False)
-    timestamp = Column(TIMESTAMP, default=datetime.utcnow, index=True)
-    phase = Column(String(20), nullable=False, default="recording")
-    record_result_id = Column(String(50), nullable=True)  # 记录报告ID
-    analysis_result_id = Column(String(50), nullable=True)  # 分析报告ID
-    therapy_result_id = Column(String(50), nullable=True)  # 建议报告ID
-    context = Column(JSON, nullable=True)  # 临时上下文
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, index=True)
-    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+    id = Column(String(50), primary_key=True, comment='对话ID')
+    user_id = Column(String(50), nullable=False, comment='用户ID', index=True)
+    title = Column(String(200), nullable=False, comment='对话标题')
+    timestamp = Column(TIMESTAMP, default=datetime.utcnow, comment='对话时间戳', index=True)
+    phase = Column(String(20), nullable=False, default="recording", comment='当前阶段', index=True)
+    record_result_id = Column(String(50), nullable=True, comment='记录报告ID')  # 记录报告ID
+    analysis_result_id = Column(String(50), nullable=True, comment='分析报告ID')  # 分析报告ID
+    therapy_result_id = Column(String(50), nullable=True, comment='建议报告ID')  # 建议报告ID
+    context = Column(JSON, nullable=True, comment='临时上下文数据')  # 临时上下文
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='创建时间')
+    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
     
     # 关系
     messages = relationship("MessageDB", back_populates="conversation")
@@ -100,16 +101,21 @@ class MessageDB(Base):
     """消息表对应的数据库模型"""
     __tablename__ = "messages"
     
-    id = Column(String(50), primary_key=True)
-    conversation_id = Column(String(50), ForeignKey("conversations.id"), nullable=False, index=True)
-    type = Column(String(20), nullable=False)  # user 或 assistant
-    role = Column(String(50), nullable=False)
-    content = Column(Text, nullable=False)
-    timestamp = Column(TIMESTAMP, default=datetime.utcnow, index=True)
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, index=True)
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment='消息唯一ID')
+    conversation_id = Column(String(50), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, comment='所属会话ID')
+    role = Column(Enum('user', 'recorder', 'analyst', 'therapist', 'system'), nullable=False, comment='发送者角色')
+    content = Column(Text, nullable=False, comment='消息内容')
+    input_tokens = Column(INTEGER(unsigned=True), nullable=True, comment='用户输入或API请求的token数')
+    output_tokens = Column(INTEGER(unsigned=True), nullable=True, comment='模型回复的token数')
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='消息发送时间')
     
     # 关系
     conversation = relationship("ConversationDB", back_populates="messages")
+    
+    # 索引
+    __table_args__ = (
+        Index('idx_conversation_time', 'conversation_id', 'created_at'),
+    )
 
 class UserDB(Base):
     """用户表对应的数据库模型"""

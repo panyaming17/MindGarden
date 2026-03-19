@@ -17,7 +17,7 @@ import random
 import string
 import time
 
-from backend.core.database import DBConfig, UserDB, SessionDB
+from backend.core.database import DBConfig, UserDB, SessionDB, SessionLocal
 from backend.core.data_models import (
     User,
     UserCreate,
@@ -87,7 +87,12 @@ SMTP_SENDER = "2771247593@qq.com"
 
 # 依赖注入获取数据库会话
 def get_db():
-    return next(DBConfig.get_db())
+    """获取数据库会话的依赖函数"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # 密码加密
 def get_password_hash(password: str) -> str:

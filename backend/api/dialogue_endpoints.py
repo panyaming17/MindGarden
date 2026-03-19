@@ -10,7 +10,7 @@ from datetime import datetime
 
 from backend.agents import AnalystAgent, TherapistAgent, DepressionPatientAgent
 from backend.api.auth_endpoints import get_db
-from backend.core.database import ConversationDB, MessageDB
+from backend.core.database import ConversationDB, MessageDB, RecordReportDB, AnalysisReportDB, SuggestionReportDB
 
 router = APIRouter(prefix="/api/dialogue", tags=["dialogue"])
 conversations_router = APIRouter(prefix="/api/conversations", tags=["conversations"])
@@ -419,6 +419,8 @@ class SaveHistoryRequest(BaseModel):
     user_id: str = Field(..., description="用户ID")
 
 
+
+
 @router.post("/save-history")
 async def save_conversation_history(
     request: SaveHistoryRequest,
@@ -426,6 +428,8 @@ async def save_conversation_history(
 ):
     """
     保存对话历史到数据库
+    - 只有在记录报告完成后才保存对话
+    - 确保对话记录关联到正确的报告
     """
     try:
         # 确定使用哪个ID作为对话历史的键
@@ -437,21 +441,26 @@ async def save_conversation_history(
                 detail="session_id或patient_id至少需要提供一个"
             )
         
+        # 检查是否存在相关的记录报告
+        record_report = db.query(RecordReportDB).filter(
+            RecordReportDB.session_id == history_key,
+            RecordReportDB.user_id == request.user_id
+        ).first()
+        
+        # 只有在记录报告完成后才保存对话
+        if not record_report:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="记录报告尚未完成，无法保存对话"
+            )
+        
         # 检查对话历史是否存在
         if history_key not in conversation_histories:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="对话历史不存在"
-            )
+            # 如果对话历史不存在，创建一个空的对话历史
+            conversation_histories[history_key] = []
         
         # 获取对话历史
         history = conversation_histories[history_key]
-        
-        if not history:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="对话历史为空"
-            )
         
         # 创建对话记录
         conversation_id = f"conv_{uuid.uuid4().hex[:8]}"
@@ -469,16 +478,68 @@ async def save_conversation_history(
         db.add(conversation)
         
         # 创建消息记录
+        messages = []
         for msg in history:
+            # 处理角色值，确保符合枚举类型
+            role = msg["role"]
+            if role == "patient":
+                role = "user"
+            elif role not in ["user", "recorder", "analyst", "therapist", "system"]:
+                role = "system"
+                
             message = MessageDB(
-                id=f"msg_{uuid.uuid4().hex[:8]}",
                 conversation_id=conversation_id,
-                type="assistant" if msg["role"] != "patient" else "user",
-                role=msg["role"],
+                role=role,
                 content=str(msg["message"]),
-                timestamp=datetime.utcnow()
+                created_at=datetime.utcnow()
             )
+            messages.append(message)
             db.add(message)
+        
+        # 检查是否存在相关的记录报告
+        record_report = db.query(RecordReportDB).filter(
+            RecordReportDB.session_id == history_key,
+            RecordReportDB.user_id == request.user_id
+        ).first()
+        
+        # 检查是否存在相关的分析报告
+        analysis_report = None
+        if record_report:
+            analysis_report = db.query(AnalysisReportDB).filter(
+                AnalysisReportDB.record_id == record_report.record_id,
+                AnalysisReportDB.user_id == request.user_id
+            ).first()
+        
+        # 检查是否存在相关的调理报告
+        suggestion_report = None
+        if analysis_report:
+            suggestion_report = db.query(SuggestionReportDB).filter(
+                SuggestionReportDB.report_id == analysis_report.report_id,
+                SuggestionReportDB.user_id == request.user_id
+            ).first()
+        
+        # 如果存在记录报告，更新其对话日志
+        if record_report:
+            # 准备对话日志数据
+            conversation_log = []
+            for msg in history:
+                conversation_log.append({
+                    "role": "user" if msg["role"] == "patient" else "assistant",
+                    "content": str(msg["message"])
+                })
+            
+            # 更新记录报告
+            record_report.conversation_log = conversation_log
+            # 关联记录报告ID到对话记录
+            conversation.record_result_id = record_report.record_id
+        
+        # 关联分析报告ID到对话记录
+        if analysis_report:
+            conversation.analysis_result_id = analysis_report.report_id
+        
+        # 关联调理报告ID到对话记录
+        if suggestion_report:
+            conversation.therapy_result_id = suggestion_report.suggestion_id
         
         # 提交事务
         db.commit()
@@ -488,7 +549,15 @@ async def save_conversation_history(
             "message": "对话历史保存成功",
             "data": {
                 "conversation_id": conversation_id,
-                "message_count": len(history)
+                "message_count": len(history),
+                "record_report_updated": record_report is not None,
+                "analysis_report_updated": analysis_report is not None,
+                "therapy_report_updated": suggestion_report is not None,
+                "reports": {
+                    "record_report_id": record_report.record_id if record_report else None,
+                    "analysis_report_id": analysis_report.report_id if analysis_report else None,
+                    "therapy_report_id": suggestion_report.suggestion_id if suggestion_report else None
+                }
             }
         }
         
