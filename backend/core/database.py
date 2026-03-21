@@ -1,4 +1,5 @@
-from sqlalchemy import create_engine, Column, String, Text, Float, ForeignKey, TIMESTAMP, JSON, Enum, Integer, BigInteger, UniqueConstraint, Boolean, Index
+from asyncio.windows_events import NULL
+from sqlalchemy import create_engine, Column, String, Text, Float, ForeignKey, TIMESTAMP, JSON, Enum, Integer, BigInteger, UniqueConstraint, Boolean, Index, ForeignKeyConstraint
 from sqlalchemy.dialects.mysql import INTEGER
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
@@ -222,6 +223,76 @@ class AuditLog(Base):
     target_id = Column(String(50), nullable=False, index=True)
     details = Column(JSON, nullable=True)
     created_at = Column(TIMESTAMP, default=datetime.utcnow, index=True)
+
+    """*******************以下是新的数据库的表*********************"""
+class Dialogues(Base):
+    __tablename__ = 'dialogues'
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(String(50), nullable=False)
+    role = Column(Enum('user', 'assistant'), nullable=False)
+    content = Column(Text, nullable=False)
+    four_dim_intensity = Column(Float, nullable=True)
+    four_dim_hedonic = Column(String(10), nullable=True)
+    four_dim_tension = Column(String(10), nullable=True)
+    four_dim_complexity = Column(String(10), nullable=True)
+    is_valuable = Column(Boolean, default=False, nullable=False)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
+    
+    # 索引
+    __table_args__ = (
+        Index('idx_user_created', 'user_id', 'created_at'),
+    )
+
+class UserArchives(Base):
+    __tablename__ = 'user_archives'
+    
+    user_id = Column(String(50), primary_key=True)
+    archive_json = Column(JSON, nullable=False)
+    version = Column(Integer, default=1, nullable=False)
+    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # 外键
+    __table_args__ = (
+        ForeignKeyConstraint(['user_id'], ['users.id']),
+    )
+
+class Strategies(Base):
+    __tablename__ = 'strategies'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    intensity_level = Column(Enum('低','中','高'), nullable=False)
+    hedonic = Column(Enum('正性','中性','负性'), nullable=False)
+    tension = Column(Enum('低','中','高'), nullable=False)
+    complexity = Column(Enum('简单','复杂'), nullable=False)
+    fusion_mode = Column(String(50), nullable=False)
+    cbt_techniques = Column(Text, nullable=False)
+    tcm_methods = Column(Text, nullable=False)
+    strategy_content = Column(Text, nullable=False)
+    example = Column(Text, nullable=False)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, nullable=True)
+    
+    # 唯一约束
+    __table_args__ = (
+        UniqueConstraint('intensity_level', 'hedonic', 'tension', 'complexity', name='unique_combo'),
+    )
+
+class Advices(Base):
+    __tablename__ = 'advices'
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(String(50), nullable=False)
+    dialogue_id = Column(BigInteger, nullable=True)
+    advice_json = Column(JSON, nullable=False)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
+    
+    # 外键
+    __table_args__ = (
+        ForeignKeyConstraint(['user_id'], ['users.id']),
+        ForeignKeyConstraint(['dialogue_id'], ['dialogues.id']),
+    )
+
+
 
 # 创建所有表
 Base.metadata.create_all(bind=engine)

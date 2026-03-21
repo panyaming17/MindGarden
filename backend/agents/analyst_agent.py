@@ -1,303 +1,225 @@
-"""
-分析师智能体 (Analyst Agent)
-职责：对记录师提供的结构化情绪信息进行专业分析（CBT + 中医情志），生成诊断报告。
-"""
-from typing import Dict, Any, List
-import time
+import json
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 import uuid
 
 from backend.agents.base_agent import BaseAgent
-from backend.core.rule_engine import RuleEngine
-from backend.core.data_models import (
-    StructuredRecord, DiagnosisReport, RecordReport, AnalysisReport,
-    CBTAnalysis, TCMAnalysis, DistortionItem, DominantEmotion, SecondaryEmotion
-)
 from backend.repositories.record_repository import RecordRepository
+from backend.core.llm_service import LLMService
 
 
 class AnalystAgent(BaseAgent):
-    """分析师智能体 - 不进行对话，只进行分析"""
-    
-    def __init__(self, agent_name: str = "analyst_agent"):
+    """分析师智能体 - 负责档案维护与策略匹配"""
+
+    def __init__(self, agent_name: str = "analyst_agent", llm_service: Optional[LLMService] = None):
         super().__init__(agent_name)
-        self.rule_engine = RuleEngine()
         self.repository = RecordRepository()
-        
-        # 性能监控
-        self.analysis_count = 0
-        self.total_analysis_time = 0.0
-        
-        # 从RuleEngine获取CBT规则
-        self.cbt_rules = self.rule_engine.cbt_rules
-    
-    async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """执行分析任务"""
-        start_time = time.time()
-        
+        self.llm_service = llm_service
+        self._init_prompts()
+
+    def _init_prompts(self):
+        """初始化提示词模板"""
+        self.system_prompt_init = """你是一位专业的心理咨询分析师。你的任务是基于用户的完整对话历史，构建一份详细的用户认知档案。档案应包含以下内容（JSON格式）：
+{
+  "user_id": "用户ID",
+  "created_at": "时间戳",
+  "basic_info": {"age": null, "gender": null, "occupation": null, "main_issues": []},
+  "emotional_timeline": {
+    "summary": "整体情绪趋势总结",
+    "trends": {"intensity": "描述", "tension": "描述", "complexity": "描述", "hedonic": "描述"},
+    "key_events": [{"timestamp": "时间", "event": "事件描述", "four_dim": {...}}]
+  },
+  "cognitive_patterns": {
+    "common_automatic_thoughts": ["思维1", "思维2"],
+    "thinking_traps": ["灾难化", "读心术"],
+    "core_beliefs": ["核心信念1"]
+  },
+  "situations": [{"time": "时间", "description": "情境", "related_thoughts": ["想法"]}],
+  "intervention_history": [{"timestamp": "时间", "strategy": "策略", "effect": "效果"}],
+  "current_focus": "当前核心议题"
+}
+请根据对话记录提取信息，确保真实准确。"""
+
+        self.system_prompt_update = """你是一位专业的心理咨询分析师。现有用户的认知档案如下（JSON格式）。请根据用户的最新发言和情绪分析结果，**增量更新**档案。只修改或补充需要变化的字段，保持其他部分不变。输出更新后的完整档案（JSON格式）。"""
+
+        self.user_prompt_template = """
+当前用户的认知档案：
+{archive_json}
+
+用户最新发言："{user_input}"
+情绪分析结果：{four_dim_json}
+
+请基于这些信息，增量更新用户的认知档案。注意：
+- 如果发言包含自动化思维，添加到 cognitive_patterns.common_automatic_thoughts（去重）。
+- 如果识别出思维陷阱，添加到 cognitive_patterns.thinking_traps（去重）。
+- 如果有重要事件，添加到 emotional_timeline.key_events。
+- 更新 emotional_timeline.summary 和 trends 以反映最新状态。
+- 更新 current_focus 为当前最核心的议题。
+"""
+
+    def _generate_initial_archive(self, user_id: str, dialogues: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """调用LLM生成初始档案（基于全部历史对话）"""
+        if not self.llm_service:
+            raise Exception("LLM服务未初始化")
+
+        # 构建对话历史文本
+        history_text = ""
+        for d in dialogues:
+            role = "用户" if d["role"] == "user" else "助手"
+            history_text += f"{role}: {d['content']}\n"
+
+        prompt = f"用户ID: {user_id}\n\n对话记录:\n{history_text}\n\n{self.system_prompt_init}"
+        response = self.llm_service.chat_completion(
+            messages=[
+                {"role": "system", "content": "你是一位专业的心理咨询分析师。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+            max_tokens=1500
+        )
+        content = response.choices[0].message.content
+        # 尝试提取JSON
         try:
-            # 1. 验证输入
-            record_id = input_data.get("record_id")
-            if not record_id:
-                raise ValueError("缺少record_id参数")
-            
-            # 2. 从数据库获取记录报告
-            # 首先尝试获取RecordReport
-            record_report = await self.repository.get_record_report_by_id(record_id)
-            
-            # 如果没有找到RecordReport，尝试获取StructuredRecord
-            if not record_report:
-                structured_record = await self.repository.get_record_by_id(record_id)
-                if not structured_record:
-                    raise ValueError(f"未找到ID为{record_id}的记录")
-                
-                # 将StructuredRecord转换为RecordReport格式
-                record_report = RecordReport(
-                    record_id=structured_record.record_id,
-                    session_id="",
-                    user_id=structured_record.user_id,
-                    timestamp=structured_record.created_at,
-                    duration=0.0,
-                    conversation_log=[],
-                    situation=structured_record.situation,
-                    automatic_thoughts=structured_record.automatic_thoughts,
-                    emotions=structured_record.emotions,
-                    physical_sensations=structured_record.physical_sensations or [],
-                    summary=""
-                )
-            
-            # 3. 执行双通路分析
-            analysis_results = await self._perform_dual_path_analysis(record_report)
-            
-            # 4. 生成分析报告
-            analysis_report = await self._generate_analysis_report(
-                record_report, analysis_results, start_time
-            )
-            
-            # 5. 保存报告到数据库
-            report_id = await self.repository.save_analysis_report(analysis_report)
-            
-            # 6. 更新性能统计
-            elapsed_time = time.time() - start_time
-            self._update_performance_stats(elapsed_time)
-            
-            return {
-                "agent": self.agent_name,
-                "status": "success",
-                "report_id": report_id,
-                "analysis_summary": {
-                    "cbt_distortions_found": len(analysis_results["cbt"]),
-                    "dominant_emotion": analysis_results["tcm"].get("dominant_emotion", {}).get("type"),
-                    "confidence_score": analysis_report.confidence_score,
-                    "processing_time": elapsed_time
-                },
-                "diagnosis_preview": {
-                    "cbt_summary": self._summarize_cbt_findings(analysis_results["cbt"]),
-                    "tcm_summary": self._summarize_tcm_findings(analysis_results["tcm"])
-                }
+            # 如果返回内容包含```json ... ```，则提取
+            if "```json" in content:
+                start = content.find("```json") + 7
+                end = content.find("```", start)
+                content = content[start:end].strip()
+            archive = json.loads(content)
+        except json.JSONDecodeError:
+            # 如果解析失败，返回默认结构
+            archive = {
+                "user_id": user_id,
+                "created_at": datetime.utcnow().isoformat(),
+                "basic_info": {},
+                "emotional_timeline": {},
+                "cognitive_patterns": {},
+                "situations": [],
+                "intervention_history": [],
+                "current_focus": ""
             }
-            
+        return archive
+
+    def _update_archive(self, current_archive: Dict[str, Any], user_input: str, four_dim: Dict[str, Any]) -> Dict[str, Any]:
+        """调用LLM增量更新档案"""
+        if not self.llm_service:
+            raise Exception("LLM服务未初始化")
+
+        prompt = self.user_prompt_template.format(
+            archive_json=json.dumps(current_archive, ensure_ascii=False, indent=2),
+            user_input=user_input,
+            four_dim_json=json.dumps(four_dim, ensure_ascii=False)
+        )
+        response = self.llm_service.chat_completion(
+            messages=[
+                {"role": "system", "content": self.system_prompt_update},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2,
+            max_tokens=1000
+        )
+        content = response.choices[0].message.content
+        try:
+            if "```json" in content:
+                start = content.find("```json") + 7
+                end = content.find("```", start)
+                content = content[start:end].strip()
+            updated_archive = json.loads(content)
+            # 确保必填字段存在
+            if "user_id" not in updated_archive:
+                updated_archive["user_id"] = current_archive.get("user_id")
+            if "created_at" not in updated_archive:
+                updated_archive["created_at"] = current_archive.get("created_at", datetime.utcnow().isoformat())
+            return updated_archive
+        except json.JSONDecodeError:
+            # 如果解析失败，返回原档案（不更新）
+            return current_archive
+
+    def _match_strategy(self, four_dim: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """从策略库匹配策略"""
+        # 将连续强度转为等级
+        def to_level(val):
+            if val < 4:
+                return "低"
+            elif val < 7:
+                return "中"
+            else:
+                return "高"
+        intensity_level = to_level(four_dim["intensity"])
+        strategy = self.repository.find_strategy(
+            intensity_level=intensity_level,
+            hedonic=four_dim["hedonic"],
+            tension=four_dim["tension"],
+            complexity=four_dim["complexity"]
+        )
+        return strategy
+
+    def _build_advice(self, archive: Dict[str, Any], strategy: Dict[str, Any], four_dim: Dict[str, Any]) -> Dict[str, Any]:
+        """构建干预建议JSON"""
+        # 提取最近几个自动化思维
+        thoughts = archive.get("cognitive_patterns", {}).get("common_automatic_thoughts", [])[-3:]
+        advice = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "current_focus": archive.get("current_focus", ""),
+            "four_dim": four_dim,
+            "fusion_mode": strategy.get("fusion_mode", "cbt_main_tcm_aux"),
+            "strategy_content": strategy.get("strategy_content", ""),
+            "cbt_techniques": strategy.get("cbt_techniques", ""),
+            "tcm_methods": strategy.get("tcm_methods", ""),
+            "key_thoughts": thoughts,
+            "suggested_technique": "认知重构" if "cbt" in strategy.get("fusion_mode", "") else "疏肝理气"
+        }
+        return advice
+
+    def analyze_process(self, user_id: str, user_input: str, four_dim: Dict[str, Any], dialogue_id: int = None) -> Dict[str, Any]:
+        """处理分析的主入口"""
+        # 1. 获取当前档案
+        archive = self.repository.get_user_archive(user_id)
+        if not archive:
+            # 没有档案，需要基于历史对话生成初始档案
+            # 获取用户所有历史对话（最多50条，避免超长）
+            histories = self.repository.get_recent_dialogues(user_id, limit=50)
+            archive = self._generate_initial_archive(user_id, histories)
+            # 保存初始档案
+            self.repository.save_user_archive(user_id, archive, version=1)
+        else:
+            # 增量更新档案
+            archive = self._update_archive(archive, user_input, four_dim)
+            # 保存更新后的档案（版本号+1）
+            version = archive.get("version", 0) + 1
+            self.repository.save_user_archive(user_id, archive, version=version)
+
+        # 2. 匹配策略
+        strategy = self._match_strategy(four_dim)
+        if not strategy:
+            # 如果没有匹配到，使用默认策略
+            strategy = {
+                "fusion_mode": "cbt_main_tcm_aux",
+                "strategy_content": "【CBT核心】试着把你的想法写下来，然后问自己：这个想法有证据吗？\n【中医辅助】可以做几次深呼吸，让身体放松。",
+                "cbt_techniques": "认知重构",
+                "tcm_methods": "调息放松"
+            }
+
+        # 3. 构建建议
+        advice = self._build_advice(archive, strategy, four_dim)
+
+        # 4. 保存建议
+        self.repository.save_advice(user_id, advice, dialogue_id)
+
+        return advice
+
+    async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """执行智能体任务"""
+        user_id = input_data.get("user_id")
+        user_input = input_data.get("user_input")
+        four_dim = input_data.get("four_dim")
+        dialogue_id = input_data.get("dialogue_id")
+
+        if not user_id or not user_input or not four_dim:
+            return {"status": "error", "message": "缺少必要参数"}
+
+        try:
+            advice = self.analyze_process(user_id, user_input, four_dim, dialogue_id)
+            return {"status": "success", "data": advice}
         except Exception as e:
-            return {
-                "agent": self.agent_name,
-                "status": "error",
-                "error": str(e),
-                "processing_time": time.time() - start_time
-            }
-    
-    async def _perform_dual_path_analysis(self, record: RecordReport) -> Dict[str, Any]:
-        """执行双通路分析（CBT + 中医情志）"""
-        # 并行执行CBT和中医分析
-        cbt_results = self.rule_engine.analyze_cbt_patterns(record.automatic_thoughts)
-        tcm_results = self.rule_engine.analyze_tcm_patterns(record.emotions)
-        
-        return {
-            "cbt": cbt_results,
-            "tcm": tcm_results,
-            "record_id": record.record_id
-        }
-    
-    async def _generate_analysis_report(self, record: RecordReport, 
-                                        analysis_results: Dict, 
-                                        start_time: float) -> AnalysisReport:
-        """生成分析报告"""
-        # 计算置信度
-        confidence = self._calculate_confidence(analysis_results)
-        
-        # 生成综合干预框架
-        framework = self.rule_engine.generate_intervention_framework(
-            analysis_results["cbt"], analysis_results["tcm"]
-        )
-        
-        # 计算实际分析耗时
-        analysis_duration = time.time() - start_time
-        
-        # 生成报告ID
-        report_id = f"ana_{uuid.uuid4().hex[:8]}"
-        
-        # 构建CBT分析结果
-        cbt_analysis = CBTAnalysis(
-            distortions_detected=[
-                DistortionItem(
-                    distortion_type=distortion.get("type", "未知类型"),
-                    matched_thought=thought.get("original_thought", ""),
-                    evidence=distortion.get("evidence", ""),
-                    challenge_question=self.cbt_rules.get(distortion.get("type"), {}).get("challenge_template")
-                )
-                for thought in analysis_results["cbt"]
-                for distortion in thought.get("distortions", [])
-            ],
-            summary=self._summarize_cbt_findings(analysis_results["cbt"]),
-            challenge_questions=[
-                self.cbt_rules.get(distortion.get("type"), {}).get("challenge_template")
-                for thought in analysis_results["cbt"]
-                for distortion in thought.get("distortions", [])
-                if self.cbt_rules.get(distortion.get("type"), {}).get("challenge_template")
-            ]
-        )
-        
-        # 构建中医情志分析结果
-        tcm_result = analysis_results["tcm"]
-        dominant_emotion = tcm_result.get("dominant_emotion", {})
-        tcm_analysis = TCMAnalysis(
-            dominant_emotion=DominantEmotion(
-                type=dominant_emotion.get("type", "未知"),
-                intensity=dominant_emotion.get("intensity", 0),
-                affected_zang=dominant_emotion.get("affected_zang", "未知")
-            ),
-            inhibiting_emotion=tcm_result.get("tcm_relationships", {}).get("inhibiting_emotion", ""),
-            secondary_emotions=[
-                SecondaryEmotion(
-                    type=emotion.get("type", "未知"),
-                    intensity=emotion.get("intensity", 0),
-                    affected_zang=emotion.get("affected_zang", "未知")
-                )
-                for emotion in tcm_result.get("secondary_emotions", [])
-            ],
-            recommended_interventions=tcm_result.get("recommended_interventions", [])
-        )
-        
-        # 确定干预优先级
-        priority = self._determine_priority(analysis_results)
-        
-        return AnalysisReport(
-            report_id=report_id,
-            record_id=record.record_id,
-            user_id=record.user_id,
-            timestamp=datetime.utcnow(),
-            analysis_duration=analysis_duration,
-            confidence_score=confidence,
-            cbt_analysis=cbt_analysis,
-            tcm_analysis=tcm_analysis,
-            integrated_framework=framework,
-            priority=priority
-        )
-    
-    def _determine_priority(self, analysis_results: Dict) -> str:
-        """确定干预优先级"""
-        cbt_results = analysis_results.get("cbt", [])
-        tcm_results = analysis_results.get("tcm", {})
-        
-        # 计算CBT扭曲数量
-        cbt_distortions = sum(len(thought.get("distortions", [])) for thought in cbt_results)
-        
-        # 计算中医情绪强度
-        dominant_emotion = tcm_results.get("dominant_emotion", {})
-        emotion_intensity = dominant_emotion.get("intensity", 0)
-        
-        # 根据CBT扭曲数量和情绪强度确定优先级
-        if cbt_distortions > 2 and emotion_intensity < 7:
-            return "CBT优先"
-        elif emotion_intensity >= 7 and cbt_distortions < 2:
-            return "情志优先"
-        else:
-            return "并重"
-    
-    def _calculate_confidence(self, analysis_results: Dict) -> float:
-        """计算分析置信度 (0.0 ~ 0.95)"""
-        confidence_factors = []
-        
-        # CBT置信度因素：基于检测到的扭曲数量
-        cbt_results = analysis_results["cbt"]
-        if cbt_results:
-            # 假设每个检测到的扭曲增加一定置信度
-            total_matches = sum(len(item.get("distortions", [])) for item in cbt_results)
-            confidence_factors.append(min(total_matches * 0.15, 0.4))  # 每个最多贡献0.15，上限0.4
-        
-        # 中医置信度因素：基于情绪强度
-        tcm_results = analysis_results["tcm"]
-        if tcm_results and tcm_results.get("dominant_emotion"):
-            intensity = tcm_results["dominant_emotion"].get("intensity", 0)
-            # 强度越高，置信度越高
-            confidence_factors.append(min(intensity / 10 * 0.4, 0.4))  # 最多贡献40%
-        
-        # 基础置信度 + 各因素总和
-        base_confidence = 0.2
-        total_confidence = base_confidence + sum(confidence_factors)
-        
-        # 设置上限，避免过于绝对
-        return min(total_confidence, 0.95)
-    
-    def _summarize_cbt_findings(self, cbt_results: List) -> str:
-        """总结CBT分析发现"""
-        if not cbt_results:
-            return "未检测到明显的认知扭曲模式。"
-        
-        # 统计各类认知扭曲的出现次数
-        distortion_counts = {}
-        for thought_analysis in cbt_results:
-            distortions = thought_analysis.get("distortions", [])
-            for distortion in distortions:
-                # 处理枚举类型
-                d_type = distortion.get("type", "未知类型")
-                if hasattr(d_type, "value"):
-                    d_type_str = d_type.value
-                else:
-                    d_type_str = str(d_type)
-                distortion_counts[d_type_str] = distortion_counts.get(d_type_str, 0) + 1
-        
-        if not distortion_counts:
-            return "检测到自动思维，但未明确归类认知扭曲类型。"
-        
-        # 找出出现最多的扭曲类型
-        primary_type, primary_count = max(distortion_counts.items(), key=lambda x: x[1])
-        return f"在{len(cbt_results)}个自动思维中识别到认知扭曲，主要类型为「{primary_type}」（出现{primary_count}次）。"
-    
-    def _summarize_tcm_findings(self, tcm_results: Dict) -> str:
-        """总结中医情志分析发现"""
-        if not tcm_results or not tcm_results.get("dominant_emotion"):
-            return "未识别出主导性情志失调模式。"
-        
-        dominant = tcm_results["dominant_emotion"]
-        emotion_type = dominant.get("type", "未知情志")
-        intensity = dominant.get("intensity", 0)
-        affected_organ = dominant.get("affected_zang", "相关脏腑")
-        
-        # 获取相胜关系（如果规则引擎提供）
-        inhibiting_emotion = tcm_results.get("tcm_relationships", {}).get("inhibiting_emotion", "")
-        
-        summary = f"主导情志为「{emotion_type}」（强度{intensity}/10），主要影响「{affected_organ}」。"
-        if inhibiting_emotion:
-            summary += f" 根据情志相胜理论，可用「{inhibiting_emotion}」进行调理。"
-        
-        return summary
-    
-    def _update_performance_stats(self, elapsed_time: float):
-        """更新性能统计"""
-        self.analysis_count += 1
-        self.total_analysis_time += elapsed_time
-    
-    def get_performance_metrics(self) -> Dict[str, Any]:
-        """获取性能指标"""
-        if self.analysis_count == 0:
-            avg_time = 0.0
-        else:
-            avg_time = self.total_analysis_time / self.analysis_count
-        
-        return {
-            "agent_name": self.agent_name,
-            "total_analyses": self.analysis_count,
-            "average_time_seconds": round(avg_time, 3),
-            "total_analysis_time": round(self.total_analysis_time, 3),
-            "status": "active"
-        }
+            return {"status": "error", "message": f"分析失败: {str(e)}"}

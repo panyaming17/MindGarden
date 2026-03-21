@@ -1,4 +1,5 @@
 ########     基础智能体类       ###########
+import time
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 
@@ -30,5 +31,3 @@ class BaseAgent(ABC):
     def activate(self):
         """激活智能体"""
         self.active = True
-
-import time

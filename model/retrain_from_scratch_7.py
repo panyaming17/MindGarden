@@ -92,6 +92,27 @@ print("\n补充后训练集分布：")
 print("紧张度分布：", train_df['tension'].value_counts().to_dict())
 print("复杂度分布：", train_df['complexity'].value_counts().to_dict())
 
+# ==================== 保存训练集和测试集 ====================
+print("\n保存训练集和测试集...")
+
+# 创建测试集目录
+os.makedirs("data/mydata/test", exist_ok=True)
+
+# 保存训练集
+train_save_path = "data/mydata/train/merged_train.csv"
+train_df.to_csv(train_save_path, index=False, encoding="utf-8-sig")
+print(f"训练集已保存至: {train_save_path}")
+
+# 保存测试集
+test_save_path = "data/mydata/test/test.csv"
+test_df.to_csv(test_save_path, index=False, encoding="utf-8-sig")
+print(f"测试集已保存至: {test_save_path}")
+
+# 断点：如果设置了此环境变量，则在保存数据后退出
+if os.getenv("BREAK_AFTER_SAVE") == "1":
+    print("\n断点：数据保存完成，退出脚本。")
+    exit()
+
 # ==================== 5. 针对低紧张度提高权重 ====================
 low_tension_mask = (train_df["tension"] == "低")
 train_df.loc[low_tension_mask, "weight"] *= 2.0
