@@ -32,6 +32,24 @@ const routes = [
     component: () => import('@/components/Questionnaire/MentalQuestionnaire.vue'),
     meta: { requiresAuth: true }
   },
+     {
+    path: '/RecordReport',
+    name: 'RecordReport',
+    component: () => import('@/components/reports/RecordReport.vue'),
+    meta: { requiresAuth: true }
+  },
+     {
+    path: '/AnalysisReport',
+    name: 'AnalysisReport',
+    component: () => import('@/components/reports/AnalysisReport.vue'),
+    meta: { requiresAuth: true }
+  },
+     {
+    path: '/SuggestionReport',
+    name: 'SuggestionReport',
+    component: () => import('@/components/reports/SuggestionReport.vue'),
+    meta: { requiresAuth: true }
+  },
   {
     path: '/admin',
     name: 'admin',
