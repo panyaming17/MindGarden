@@ -167,15 +167,22 @@ const sendMessage = async (content) => {
 const handleRecorderConversation = async (content) => {
   isProcessing.value = true
   try {
+    // 构建请求参数
+    const requestData = {
+      user_input: content
+    }
+    
+    // 只有当sessionId存在时才传递
+    if (sessionData.sessionId) {
+      requestData.session_id = sessionData.sessionId
+    }
+    
     const response = await fetch(`${API_BASE_URL}/recorder/converse`, { 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        user_input: content,
-        session_id: sessionData.sessionId
-      })
+      body: JSON.stringify(requestData)
     })
     
     if (!response.ok) {
@@ -203,6 +210,8 @@ const handleRecorderConversation = async (content) => {
     // 检查是否需要触发分析
     if (data.next_action === 'trigger_analyst' && data.record_id) {
       sessionData.recordId = data.record_id
+      // 调用记录报告创建接口
+      await createRecordReport()
       await triggerAnalysis()
     }
   } catch (error) {
@@ -217,6 +226,61 @@ const handleRecorderConversation = async (content) => {
     messages.value.push(errorMsg)
   } finally {
     isProcessing.value = false
+  }
+}
+
+// 创建记录报告
+const createRecordReport = async () => {
+  try {
+    // 从localStorage获取用户信息
+    const storedUser = localStorage.getItem('user');
+    const userId = storedUser ? JSON.parse(storedUser).id || 'current_user' : 'current_user';
+    
+    // 构建对话日志
+    const conversationLog = messages.value.map(msg => ({
+      role: msg.type === 'user' ? 'user' : 'assistant',
+      content: msg.content
+    }));
+    
+    const response = await fetch(`${API_BASE_URL}/recorder/record-reports`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        session_id: sessionData.sessionId,
+        user_id: userId,
+        duration: 120.5, // 暂时硬编码，实际应该计算对话时长
+        conversation_log: conversationLog,
+        situation: '用户情绪困扰', // 暂时默认值，实际应该从对话中提取
+        automatic_thoughts: [], // 暂时空数组，实际应该从对话中提取
+        emotions: [], // 暂时空数组，实际应该从对话中提取
+        physical_sensations: [], // 暂时空数组，实际应该从对话中提取
+        summary: '用户情绪对话记录' // 暂时默认值，实际应该从对话中提取
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error('创建记录报告失败');
+    }
+    
+    const data = await response.json();
+    console.log('记录报告创建成功:', data);
+    
+    // 保存record_id
+    if (data.record_id) {
+      sessionData.recordId = data.record_id;
+    }
+  } catch (error) {
+    console.error('创建记录报告失败:', error);
+    // 添加错误消息
+    const errorMsg = {
+      id: Date.now() + 1,
+      type: 'system',
+      content: '创建记录报告失败，请重试。',
+      timestamp: new Date()
+    };
+    messages.value.push(errorMsg);
   }
 }
 
@@ -431,6 +495,8 @@ const startNewChat = () => {
 const endChat = async () => {
   // 检查是否有报告生成
   const hasReport = !!sessionData.reportId
+  // 检查是否有记录报告
+  const hasRecordReport = !!sessionData.recordId
   // 弹出确认对话框
   let confirmMessage = ''
   if (activeStep.value === 2) {
@@ -439,6 +505,9 @@ const endChat = async () => {
   } else if (hasReport) {
     // 有报告生成
     confirmMessage = `确定要结束当前${activeStep.value === 0 ? '记录' : '分析'}阶段的对话吗？对话内容和报告将被保存到对话记录中。`
+  } else if (hasRecordReport) {
+    // 有记录报告但无分析报告
+    confirmMessage = `确定要结束当前${activeStep.value === 0 ? '记录' : '分析'}阶段的对话吗？对话内容和记录报告将被保存到对话记录中。`
   } else {
     // 无报告生成
     confirmMessage = `确定要结束当前${activeStep.value === 0 ? '记录' : '分析'}阶段的对话吗？由于没有生成报告，本次对话将不会被保存。`
@@ -451,27 +520,36 @@ const endChat = async () => {
   try {
     isProcessing.value = true
     
-    // 调用后端API结束对话
-    const response = await fetch(`${API_BASE_URL}/api/conversations/end`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        session_id: sessionData.sessionId,
-        record_id: sessionData.recordId,
-        report_id: sessionData.reportId,
-        phase: sessionData.currentPhase,
-        active_step: activeStep.value,
-        save_conversation: hasReport
+    // 调用后端API保存对话历史
+    if ((hasReport || hasRecordReport) && sessionData.sessionId) {
+      // 从localStorage获取用户信息
+      const storedUser = localStorage.getItem('user');
+      const userId = storedUser ? JSON.parse(storedUser).id || 'current_user' : 'current_user';
+      
+      const saveResponse = await fetch(`${API_BASE_URL}/api/dialogue/save-history`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          session_id: sessionData.sessionId,
+          title: '对话记录',
+          user_id: userId
+        })
       })
-    })
-    
-    if (!response.ok) {
-      throw new Error('结束对话失败')
+      
+      if (!saveResponse.ok) {
+        // 尝试获取错误信息
+        const errorData = await saveResponse.json().catch(() => ({}));
+        if (errorData.message && errorData.message.includes('记录报告尚未完成')) {
+          throw new Error('记录报告尚未完成，无法保存对话');
+        }
+        throw new Error('保存对话失败');
+      }
+      
+      const saveData = await saveResponse.json()
+      console.log('对话保存成功:', saveData)
     }
-    
-    const data = await response.json()
     
     // 显示成功消息
     alert('对话已成功结束')
@@ -480,7 +558,12 @@ const endChat = async () => {
     startNewChat()
   } catch (error) {
     console.error('结束对话失败:', error)
-    alert('结束对话失败，请重试')
+    // 处理特定错误
+    if (error.message.includes('记录报告尚未完成')) {
+      alert('记录报告尚未完成，无法保存对话。请先完成记录报告后再结束对话。');
+    } else {
+      alert('结束对话失败，请重试');
+    }
   } finally {
     isProcessing.value = false
   }
