@@ -1,7 +1,7 @@
 ########     数据模型定义       ###########
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 
 class EmotionType(str, Enum):
@@ -174,6 +174,9 @@ class TokenVerify(BaseModel):
 class UserUpdate(BaseModel):
     """用户更新请求模型"""
     email: Optional[str] = None
+    username: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
 
 class SendRegisterCode(BaseModel):
     """发送注册验证码请求模型"""
@@ -367,3 +370,250 @@ class AuditLogListResponse(BaseModel):
     page: int
     per_page: int
     items: List[AuditLog]
+
+# 对话相关数据模型
+class ChatMessage(BaseModel):
+    """聊天消息请求模型"""
+    user_id: str
+    session_id: str
+    message: str
+
+class ChatMessageResponse(BaseModel):
+    """聊天消息响应模型"""
+    reply: str
+    four_dim: Dict[str, Any]
+    is_valuable: bool
+
+class NewSessionResponse(BaseModel):
+    """创建新会话响应模型"""
+    session_id: str
+    session_title: str
+
+class SessionInfo(BaseModel):
+    """会话信息模型"""
+    session_id: str
+    title: str
+    last_message: str
+    created_at: datetime
+
+class SessionList(BaseModel):
+    """会话列表响应模型"""
+    sessions: List[SessionInfo]
+
+class Dialogue(BaseModel):
+    """对话记录模型"""
+    id: str
+    user_id: str
+    session_id: str
+    role: str
+    content: str
+    four_dim_intensity: Optional[float] = None
+    four_dim_hedonic: Optional[str] = None
+    four_dim_tension: Optional[str] = None
+    four_dim_complexity: Optional[str] = None
+    is_valuable: bool
+    created_at: datetime
+
+class ChatHistoryResponse(BaseModel):
+    """聊天历史响应模型"""
+    dialogues: List[Dialogue]
+
+# 报告相关数据模型
+class SessionReport(BaseModel):
+    """会话报告模型"""
+    id: int
+    user_id: str
+    session_id: str
+    record_report_json: Dict[str, Any]
+    analysis_report_json: Dict[str, Any]
+    treatment_report_json: Dict[str, Any]
+    created_at: datetime
+
+class SessionReportResponse(BaseModel):
+    """会话报告响应模型"""
+    record_report: Dict[str, Any]
+    analysis_report: Dict[str, Any]
+    treatment_report: Dict[str, Any]
+
+class ReportList(BaseModel):
+    """报告列表响应模型"""
+    reports: List[SessionReport]
+
+# 情绪日记相关数据模型
+class MoodEntry(BaseModel):
+    """情绪日记模型"""
+    id: int
+    user_id: str
+    entry_date: date
+    mood_label: str
+    signature_text: str
+    four_dim_intensity: Optional[float] = None
+    four_dim_hedonic: Optional[str] = None
+    four_dim_tension: Optional[str] = None
+    four_dim_complexity: Optional[str] = None
+    created_at: datetime
+
+class MoodEntryCreate(BaseModel):
+    """创建情绪日记请求模型"""
+    user_id: str
+    date: date
+    mood_label: str
+    signature_text: str
+    four_dim: Optional[Dict[str, Any]] = None
+
+class MoodCalendarDay(BaseModel):
+    """情绪日历天模型"""
+    date: str
+    mood_label: str
+    signature: str
+
+class MoodCalendarResponse(BaseModel):
+    """情绪日历响应模型"""
+    days: List[MoodCalendarDay]
+
+class MoodTrendResponse(BaseModel):
+    """情绪趋势响应模型"""
+    dates: List[str]
+    intensities: List[float]
+    labels: List[str]
+
+# 问卷自测相关数据模型
+class Questionnaire(BaseModel):
+    """问卷模型"""
+    id: int
+    name: str
+    description: str
+
+class QuestionnaireList(BaseModel):
+    """问卷列表响应模型"""
+    questionnaires: List[Questionnaire]
+
+class QuestionnaireDetail(BaseModel):
+    """问卷详情响应模型"""
+    questions: Dict[str, Any]
+    scoring_rule: Optional[Dict[str, Any]] = None
+
+class QuestionnaireSubmit(BaseModel):
+    """提交问卷请求模型"""
+    user_id: str
+    questionnaire_id: int
+    answers: Dict[str, int]
+
+class QuestionnaireResult(BaseModel):
+    """问卷结果响应模型"""
+    total_score: int
+    severity: str
+    message: str
+
+class UserQuestionnaireResult(BaseModel):
+    """用户问卷结果模型"""
+    id: int
+    questionnaire_id: int
+    questionnaire_name: str
+    total_score: int
+    severity: str
+    created_at: datetime
+
+class QuestionnaireHistory(BaseModel):
+    """问卷历史响应模型"""
+    results: List[UserQuestionnaireResult]
+
+# 预警相关数据模型
+class Alert(BaseModel):
+    """预警模型"""
+    id: int
+    type: str
+    level: str
+    message: str
+    created_at: datetime
+
+class AlertList(BaseModel):
+    """预警列表响应模型"""
+    alerts: List[Alert]
+
+class AlertAcknowledge(BaseModel):
+    """确认预警请求模型"""
+    alert_id: int
+
+# 管理员功能相关数据模型
+class IntensityLevel(str, Enum):
+    LOW = "低"
+    MEDIUM = "中"
+    HIGH = "高"
+
+class Hedonic(str, Enum):
+    POSITIVE = "正性"
+    NEUTRAL = "中性"
+    NEGATIVE = "负性"
+
+class Tension(str, Enum):
+    LOW = "低"
+    MEDIUM = "中"
+    HIGH = "高"
+
+class Complexity(str, Enum):
+    SIMPLE = "简单"
+    COMPLEX = "复杂"
+
+class UserList(BaseModel):
+    """用户列表响应模型"""
+    users: List[User]
+    total: int
+
+class Strategy(BaseModel):
+    """策略模型"""
+    id: int
+    intensity_level: str
+    hedonic: str
+    tension: str
+    complexity: str
+    fusion_mode: str
+    cbt_techniques: str
+    tcm_methods: str
+    strategy_content: str
+    example: str
+    created_at: datetime
+
+class StrategyCreate(BaseModel):
+    """创建策略请求模型"""
+    intensity_level: str
+    hedonic: str
+    tension: str
+    complexity: str
+    fusion_mode: str
+    cbt_techniques: str
+    tcm_methods: str
+    strategy_content: str
+    example: str
+
+class StrategyUpdate(BaseModel):
+    """更新策略请求模型"""
+    intensity_level: Optional[str] = None
+    hedonic: Optional[str] = None
+    tension: Optional[str] = None
+    complexity: Optional[str] = None
+    fusion_mode: Optional[str] = None
+    cbt_techniques: Optional[str] = None
+    tcm_methods: Optional[str] = None
+    strategy_content: Optional[str] = None
+    example: Optional[str] = None
+
+class StrategyList(BaseModel):
+    """策略列表响应模型"""
+    strategies: List[Strategy]
+    total: int
+
+class AdminLog(BaseModel):
+    """管理员日志模型"""
+    id: int
+    admin_id: str
+    action: str
+    target: str
+    details: str
+    ip_address: str
+    created_at: datetime
+
+class AdminLogList(BaseModel):
+    """管理员日志列表响应模型"""
+    logs: List[AdminLog]
+    total: int

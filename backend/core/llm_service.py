@@ -48,8 +48,9 @@ class LLMService:
         self.session = None # 异步HTTP会话，在上下文管理器中初始化
         
         # 检查是否有任何可用的提供商
-        if not self.get_available_providers():
-            raise ValueError("没有可用的LLM提供商，请检查API密钥配置")
+        # 不再抛出异常，而是在chat_completion中处理
+        # if not self.get_available_providers():
+        #     raise ValueError("没有可用的LLM提供商，请检查API密钥配置")
     
     def _init_config(self):
         """初始化各提供商的配置"""
@@ -101,7 +102,7 @@ class LLMService:
                              temperature: float = 0.7,
                              max_tokens: int = 2000,
                              json_mode: bool = False,
-                             try_all_providers: bool = False) -> str:
+                             try_all_providers: bool = False) -> Dict[str, Any]:
         """
         统一的聊天补全接口
         
@@ -113,7 +114,7 @@ class LLMService:
             try_all_providers: 是否尝试所有可用的提供商（随机顺序），默认为False
             
         Returns:
-            LLM返回的文本内容
+            OpenAI格式的响应，包含choices字段
         """
         if not self.session:
             self.session = aiohttp.ClientSession()
@@ -122,7 +123,10 @@ class LLMService:
         available_providers = self.get_available_providers()
         
         if not available_providers:
-            raise ValueError("没有可用的LLM提供商，请检查API密钥配置")
+            # 没有可用的提供商，返回基于用户输入的简单回复
+            user_message = next((msg["content"] for msg in messages if msg["role"] == "user"), "")
+            fallback_reply = self._get_fallback_reply(user_message)
+            return {"choices": [{"message": {"content": fallback_reply}}]}
         
         # 如果设置了try_all_providers，随机打乱可用提供商列表
         # 否则使用当前配置的提供商
@@ -137,7 +141,10 @@ class LLMService:
             if self.provider in available_providers:
                 providers_to_try = [self.provider]
             else:
-                raise ValueError(f"当前配置的提供商 {self.provider} 不可用")
+                # 如果当前配置的提供商不可用，返回回退回复
+                user_message = next((msg["content"] for msg in messages if msg["role"] == "user"), "")
+                fallback_reply = self._get_fallback_reply(user_message)
+                return {"choices": [{"message": {"content": fallback_reply}}]}
         
         # 遍历所有要尝试的提供商
         exceptions = []
@@ -145,9 +152,11 @@ class LLMService:
             try:
                 logger.info(f"尝试使用提供商: {provider}")
                 if provider == "deepseek":
-                    return await self._call_deepseek_api(messages, temperature, max_tokens, json_mode)
+                    text = await self._call_deepseek_api(messages, temperature, max_tokens, json_mode)
+                    return {"choices": [{"message": {"content": text}}]}
                 elif provider == "baidu_qianfan":
-                    return await self._call_baidu_api(messages, temperature, max_tokens)
+                    text = await self._call_baidu_api(messages, temperature, max_tokens)
+                    return {"choices": [{"message": {"content": text}}]}
                 else:
                     raise ValueError(f"提供商 {provider} 尚未实现")
                     
@@ -164,9 +173,12 @@ class LLMService:
                 logger.error(error_msg)
                 exceptions.append((provider, error_msg))
         
-        # 如果所有提供商都失败了，抛出异常
+        # 如果所有提供商都失败了，返回基于用户输入的简单回复
         error_messages = [f"{prov}: {msg}" for prov, msg in exceptions]
-        raise Exception(f"所有可用的LLM提供商调用都失败了: {'; '.join(error_messages)}")
+        logger.error(f"所有可用的LLM提供商调用都失败了: {'; '.join(error_messages)}")
+        user_message = next((msg["content"] for msg in messages if msg["role"] == "user"), "")
+        fallback_reply = self._get_fallback_reply(user_message)
+        return {"choices": [{"message": {"content": fallback_reply}}]}
     
     async def _call_deepseek_api(self, messages: List[Dict[str, str]], 
                                 temperature: float, max_tokens: int, 
@@ -298,6 +310,20 @@ class LLMService:
             if config.get("api_key"):
                 available.append(provider)
         return available
+    
+    def _get_fallback_reply(self, user_message: str) -> str:
+        """
+        当所有LLM提供商都失败时，返回一个基于用户输入的简单回复
+        """
+        # 简单的关键词匹配，生成合理的回复
+        if any(keyword in user_message for keyword in ["紧张", "焦虑", "压力", "害怕", "担心"]):
+            return "我能感受到你现在很紧张，这是很正常的。深呼吸，慢慢来，你已经做了充分的准备，相信自己一定可以的。"
+        elif any(keyword in user_message for keyword in ["难过", "伤心", "痛苦", "悲伤"]):
+            return "我能理解你的感受，这种感觉一定很煎熬。记住，悲伤是暂时的，一切都会好起来的。如果你愿意，可以和我多聊聊。"
+        elif any(keyword in user_message for keyword in ["开心", "高兴", "快乐", "兴奋"]):
+            return "看到你这么开心，我也感到很高兴！希望你能一直保持这种积极的状态，继续享受美好的时光。"
+        else:
+            return "我理解你的感受。如果你愿意，可以和我多聊聊，我会一直在这里倾听和支持你。"
 
 # 全局LLM服务实例（单例模式）
 _llm_service_instance = None

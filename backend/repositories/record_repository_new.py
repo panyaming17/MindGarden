@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
-from backend.core.database import DBConfig, Dialogues, UserArchives, Strategies, Advices
+from backend.core.database import DBConfig, DialogueDB as Dialogues, UserArchiveDB as UserArchives, StrategyDB as Strategies, AdviceDB as Advices
 from backend.core.data_models import StructuredRecord, DiagnosisReport, RecordReport, AnalysisReport, SuggestionReport, DailySuggestion
 
 class RecordRepository:
@@ -41,7 +41,7 @@ class RecordRepository:
     # ---------- 新增：对话记录相关 ----------
     def save_dialogue(self, user_id: str, role: str, content: str,
                       four_dim: Optional[Dict[str, Any]] = None,
-                      is_valuable: bool = False) -> int:
+                      is_valuable: bool = False,session_id: Optional[str] = None) -> int:
         """
         保存一条对话记录
         :param user_id: 用户ID
@@ -60,6 +60,7 @@ class RecordRepository:
 
             db_dialogue = Dialogues(
                 user_id=user_id,
+                session_id=session_id,
                 role=role,
                 content=content,
                 four_dim_intensity=four_dim_intensity,
@@ -79,18 +80,20 @@ class RecordRepository:
         finally:
             db.close()
 
-    def get_recent_dialogues(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_recent_dialogues(self, user_id: str, limit: int = 10, session_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         获取用户最近的对话历史
         :param user_id: 用户ID
         :param limit: 返回条数
+        :param session_id: 会话ID，可选，如果提供则只返回该会话的对话
         :return: 对话记录列表，按时间倒序
         """
         db = next(self.db_factory())
         try:
-            records = db.query(Dialogues).filter(
-                Dialogues.user_id == user_id
-            ).order_by(Dialogues.created_at.desc()).limit(limit).all()
+            query = db.query(Dialogues).filter(Dialogues.user_id == user_id)
+            if session_id:
+                query = query.filter(Dialogues.session_id == session_id)
+            records = query.order_by(Dialogues.created_at.desc()).limit(limit).all()
             # 转换为字典列表，便于返回
             result = []
             for r in records:
@@ -112,14 +115,18 @@ class RecordRepository:
             db.close()
 
     # ---------- 用户档案相关 ----------
-    def get_user_archive(self, user_id: str) -> Optional[Dict[str, Any]]:
+    def get_user_archive(self, user_id: str, session_id: str) -> Optional[Dict]:
         """获取用户的认知档案（JSON格式）"""
         db = next(self.db_factory())
         try:
-            archive = db.query(UserArchives).filter(UserArchives.user_id == user_id).first()
+            archive = db.query(UserArchives).filter(
+                UserArchives.user_id == user_id,
+                UserArchives.session_id == session_id
+            ).first()
             if archive:
                 return {
                     "user_id": archive.user_id,
+                    "session_id": archive.session_id,
                     "archive_json": archive.archive_json,
                     "version": archive.version,
                     "updated_at": archive.updated_at.isoformat()
@@ -128,16 +135,20 @@ class RecordRepository:
         finally:
             db.close()
 
-    def save_user_archive(self, user_id: str, archive_json: Dict[str, Any], version: int = 1) -> None:
+    def save_user_archive(self, user_id: str, session_id: str, archive_json: Dict, version: int = 1):
         """
         保存或更新用户档案
         :param user_id: 用户ID
+        :param session_id: 会话ID
         :param archive_json: 档案内容（字典）
         :param version: 版本号，若存在则覆盖
         """
         db = next(self.db_factory())
         try:
-            existing = db.query(UserArchives).filter(UserArchives.user_id == user_id).first()
+            existing = db.query(UserArchives).filter(
+                UserArchives.user_id == user_id,
+                UserArchives.session_id == session_id
+            ).first()
             if existing:
                 existing.archive_json = archive_json
                 existing.version = version
@@ -145,9 +156,9 @@ class RecordRepository:
             else:
                 new_archive = UserArchives(
                     user_id=user_id,
+                    session_id=session_id,
                     archive_json=archive_json,
-                    version=version,
-                    updated_at=datetime.utcnow()
+                    version=version
                 )
                 db.add(new_archive)
             db.commit()
@@ -220,12 +231,13 @@ class RecordRepository:
 
     # ---------- 建议记录相关 ----------
     def save_advice(self, user_id: str, advice_json: Dict[str, Any],
-                    dialogue_id: Optional[int] = None) -> int:
+                    dialogue_id: Optional[int] = None, session_id: Optional[str] = None) -> int:
         """
         保存分析师生成的建议
         :param user_id: 用户ID
         :param advice_json: 建议内容（字典）
         :param dialogue_id: 触发该建议的对话ID（可选）
+        :param session_id: 会话ID（可选）
         :return: 建议记录的ID
         """
         db = next(self.db_factory())
@@ -233,6 +245,7 @@ class RecordRepository:
             advice = Advices(
                 user_id=user_id,
                 dialogue_id=dialogue_id,
+                session_id=session_id,
                 advice_json=advice_json,
                 created_at=datetime.utcnow()
             )

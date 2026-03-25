@@ -1,12 +1,17 @@
-from asyncio.windows_events import NULL
+import sys
+import os
+
+# 添加项目根目录到 Python 路径
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 from sqlalchemy import create_engine, Column, String, Text, Float, ForeignKey, TIMESTAMP, JSON, Enum, Integer, BigInteger, UniqueConstraint, Boolean, Index, ForeignKeyConstraint
 from sqlalchemy.dialects.mysql import INTEGER
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from datetime import datetime
 from config import DatabaseConfig
 
 # 创建SQLAlchemy引擎
+print(f"连接到数据库: {DatabaseConfig.SQLALCHEMY_DATABASE_URL}")
 engine = create_engine(
     DatabaseConfig.SQLALCHEMY_DATABASE_URL,
     **DatabaseConfig.SQLALCHEMY_ENGINE_OPTIONS
@@ -30,269 +35,217 @@ class DBConfig:
         finally:
             db.close()
 
-# SQLAlchemy模型定义
+# ==================== 用户与权限 ====================
 
-class StructuredRecordDB(Base):
-    """结构化记录表对应的数据库模型"""
-    __tablename__ = "structured_records"
+class UserDB(Base):
+    """用户表"""
+    __tablename__ = "users"
     
-    id = Column(String(50), primary_key=True)
-    user_id = Column(String(50), nullable=False, index=True)
-    raw_text = Column(Text, nullable=True)
-    situation = Column(Text, nullable=True)
-    automatic_thoughts = Column(JSON, nullable=True)  # 存储JSON数组
-    emotions = Column(JSON, nullable=True)           # 存储情绪列表
-    physical_sensations = Column(JSON, nullable=True)  # 存储身体感觉列表
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, index=True)
-    
-    # 关系
-    diagnosis_reports = relationship("DiagnosisReportDB", back_populates="structured_record")
+    id = Column(Integer, primary_key=True, autoincrement=True, comment='用户ID')
+    username = Column(String(50), unique=True, nullable=False, comment='用户名')
+    email = Column(String(100), unique=True, nullable=False, comment='邮箱')
+    password_hash = Column(String(255), nullable=False, comment='密码哈希')
+    role = Column(Enum('user', 'admin','super_admin'), nullable=False, default='user', comment='角色')
+    is_active = Column(Boolean, default=True, comment='软删除标记')
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='创建时间')
+    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
 
-class DiagnosisReportDB(Base):
-    """诊断报告表对应的数据库模型"""
-    __tablename__ = "diagnosis_reports"
+class SessionDB(Base):
+    """会话表"""
+    __tablename__ = "sessions"
     
-    id = Column(String(50), primary_key=True)
-    record_id = Column(String(50), ForeignKey("structured_records.id"), nullable=False, index=True)
-    user_id = Column(String(50), nullable=False, index=True)
-    cbt_analysis = Column(JSON, nullable=True)
-    tcm_analysis = Column(JSON, nullable=True)
-    comprehensive_framework = Column(Text, nullable=True)
-    confidence_score = Column(Float, nullable=True)
-    analysis_duration = Column(Float, nullable=True)
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, index=True)
-    
-    # 关系
-    structured_record = relationship("StructuredRecordDB", back_populates="diagnosis_reports")
+    id = Column(String(50), primary_key=True, comment='会话ID')
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment='用户ID', index=True)
+    token = Column(String(255), unique=True, nullable=False, comment='访问令牌', index=True)
+    expires_at = Column(TIMESTAMP, nullable=False, comment='过期时间', index=True)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='创建时间')
 
-class RuleVersionDB(Base):
-    """规则库版本表对应的数据库模型"""
-    __tablename__ = "rule_versions"
+class EmailVerificationCodeDB(Base):
+    """邮箱验证码表"""
+    __tablename__ = "email_verification_codes"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    rule_type = Column(Enum('cbt', 'tcm'), nullable=False)
-    version = Column(String(20), nullable=False)
-    content_hash = Column(String(64), nullable=False)
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    email = Column(String(100), nullable=False, comment='邮箱')
+    code = Column(String(6), nullable=False, comment='验证码')
+    type = Column(Enum('register', 'reset'), nullable=False, comment='类型')
+    expires_at = Column(TIMESTAMP, nullable=False, comment='过期时间')
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='创建时间')
+
+# ==================== 对话与智能体 ====================
+
+class DialogueDB(Base):
+    """对话记录表"""
+    __tablename__ = "dialogues"
     
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment='对话ID')
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment='用户ID')
+    session_id = Column(String(50), nullable=True, comment='会话ID（用于区分对话轮次）')
+    role = Column(Enum('user', 'assistant'), nullable=False, comment='说话者')
+    content = Column(Text, nullable=False, comment='内容')
+    four_dim_intensity = Column(Float, nullable=True, comment='强度')
+    four_dim_hedonic = Column(String(10), nullable=True, comment='快感度')
+    four_dim_tension = Column(String(10), nullable=True, comment='紧张度')
+    four_dim_complexity = Column(String(10), nullable=True, comment='复杂度')
+    is_valuable = Column(Boolean, default=False, nullable=False, comment='是否有价值（触发分析师）')
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='创建时间')
+    
+    # 索引
     __table_args__ = (
-        UniqueConstraint('rule_type', 'version', name='unique_rule_version'),
+        Index('idx_user_session', 'user_id', 'session_id', 'created_at'),
     )
 
-class ConversationDB(Base):
-    """对话记录表对应的数据库模型"""
-    __tablename__ = "conversations"
+class UserArchiveDB(Base):
+    """用户认知档案表"""
+    __tablename__ = "user_archives"
     
-    id = Column(String(50), primary_key=True, comment='对话ID')
-    user_id = Column(String(50), nullable=False, comment='用户ID', index=True)
-    title = Column(String(200), nullable=False, comment='对话标题')
-    timestamp = Column(TIMESTAMP, default=datetime.utcnow, comment='对话时间戳', index=True)
-    phase = Column(String(20), nullable=False, default="recording", comment='当前阶段', index=True)
-    record_result_id = Column(String(50), nullable=True, comment='记录报告ID')  # 记录报告ID
-    analysis_result_id = Column(String(50), nullable=True, comment='分析报告ID')  # 分析报告ID
-    therapy_result_id = Column(String(50), nullable=True, comment='建议报告ID')  # 建议报告ID
-    context = Column(JSON, nullable=True, comment='临时上下文数据')  # 临时上下文
+    id = Column(Integer, primary_key=True, autoincrement=True, comment='档案ID')
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment='用户ID')
+    session_id = Column(String(50), ForeignKey("sessions.id"), nullable=False, comment='会话ID')
+    archive_json = Column(JSON, nullable=False, comment='完整档案JSON')
+    version = Column(Integer, default=1, comment='版本号')
     created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='创建时间')
     updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
     
-    # 关系
-    messages = relationship("MessageDB", back_populates="conversation")
-
-class MessageDB(Base):
-    """消息表对应的数据库模型"""
-    __tablename__ = "messages"
-    
-    id = Column(BigInteger, primary_key=True, autoincrement=True, comment='消息唯一ID')
-    conversation_id = Column(String(50), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, comment='所属会话ID')
-    role = Column(Enum('user', 'recorder', 'analyst', 'therapist', 'system'), nullable=False, comment='发送者角色')
-    content = Column(Text, nullable=False, comment='消息内容')
-    input_tokens = Column(INTEGER(unsigned=True), nullable=True, comment='用户输入或API请求的token数')
-    output_tokens = Column(INTEGER(unsigned=True), nullable=True, comment='模型回复的token数')
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='消息发送时间')
-    
-    # 关系
-    conversation = relationship("ConversationDB", back_populates="messages")
-    
-    # 索引
+    # 唯一约束
     __table_args__ = (
-        Index('idx_conversation_time', 'conversation_id', 'created_at'),
+        UniqueConstraint('user_id', 'session_id', name='unique_user_session'),
     )
 
-class UserDB(Base):
-    """用户表对应的数据库模型"""
-    __tablename__ = "users"
-    
-    id = Column(String(50), primary_key=True)
-    username = Column(String(50), unique=True, nullable=False, index=True)
-    password_hash = Column(String(255), nullable=False)
-    email = Column(String(100), unique=True, nullable=False, index=True)
-    is_active = Column(Boolean, default=True, nullable=False)
-    role = Column(String(20), default="user", nullable=False)  # user, admin, super_admin
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, index=True)
-    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
-    
-    # 关系
-    sessions = relationship("SessionDB", back_populates="user")
-
-class SessionDB(Base):
-    """会话表对应的数据库模型"""
-    __tablename__ = "sessions"
-    
-    id = Column(String(50), primary_key=True)
-    user_id = Column(String(50), ForeignKey("users.id"), nullable=False, index=True)
-    token = Column(String(255), unique=True, nullable=False, index=True)
-    expires_at = Column(TIMESTAMP, nullable=False, index=True)
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, index=True)
-    
-    # 关系
-    user = relationship("UserDB", back_populates="sessions")
-
-class RecordReportDB(Base):
-    """记录报告表对应的数据库模型"""
-    __tablename__ = "record_reports"
-    
-    record_id = Column(String(50), primary_key=True)
-    session_id = Column(String(50), nullable=False, index=True)
-    user_id = Column(String(50), nullable=False, index=True)
-    timestamp = Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
-    duration = Column(Float, nullable=False)
-    conversation_log = Column(JSON, nullable=True)  # 完整对话历史
-    situation = Column(Text, nullable=False)  # 引发情绪的具体事件或情境
-    automatic_thoughts = Column(JSON, nullable=False)  # 自动思维列表
-    emotions = Column(JSON, nullable=False)  # 情绪列表
-    physical_sensations = Column(JSON, nullable=False)  # 身体感受列表
-    summary = Column(Text, nullable=False)  # 本次记录简短总结
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, index=True)
-    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
-
-class AnalysisReportDB(Base):
-    """分析报告表对应的数据库模型"""
-    __tablename__ = "analysis_reports"
-    
-    report_id = Column(String(50), primary_key=True)
-    record_id = Column(String(50), nullable=False, index=True)
-    user_id = Column(String(50), nullable=False, index=True)
-    timestamp = Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
-    analysis_duration = Column(Float, nullable=False)
-    confidence_score = Column(Float, nullable=False)
-    cbt_analysis = Column(JSON, nullable=False)  # CBT分析结果
-    tcm_analysis = Column(JSON, nullable=False)  # 中医情志分析结果
-    integrated_framework = Column(Text, nullable=False)  # 综合干预框架
-    priority = Column(String(50), nullable=False)  # 干预优先级
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, index=True)
-    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
-
-class SuggestionReportDB(Base):
-    """建议报告表对应的数据库模型"""
-    __tablename__ = "suggestion_reports"
-    
-    suggestion_id = Column(String(50), primary_key=True)
-    report_id = Column(String(50), nullable=False, index=True)
-    user_id = Column(String(50), nullable=False, index=True)
-    timestamp = Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
-    target_issues = Column(JSON, nullable=False)  # 本次疏导聚焦的问题
-    core_principles = Column(JSON, nullable=False)  # 疏导核心理念
-    daily_suggestions = Column(JSON, nullable=False)  # 每日可执行建议
-    emergency_tips = Column(JSON, nullable=True)  # 情绪紧急时的应对技巧
-    encouragement = Column(Text, nullable=False)  # 鼓励性结语
-    plan_summary = Column(Text, nullable=False)  # 简短总结
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, index=True)
-    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
-
-class RuleDB(Base):
-    """规则库表对应的数据库模型"""
-    __tablename__ = "rules"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    type = Column(Enum('cbt', 'tcm'), nullable=False)
-    name = Column(String(100), nullable=False)
-    content = Column(JSON, nullable=False)  # 规则具体内容（如关键词、干预策略）
-    version = Column(String(20), nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, index=True)
-    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
-
-class AuditLog(Base):
-    """审计日志表对应的数据库模型"""
-    __tablename__ = 'audit_logs'
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    admin_id = Column(String(50), nullable=False, index=True)
-    action = Column(String(50), nullable=False, index=True)
-    target_type = Column(String(50), nullable=False, index=True)
-    target_id = Column(String(50), nullable=False, index=True)
-    details = Column(JSON, nullable=True)
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, index=True)
-
-    """*******************以下是新的数据库的表*********************"""
-class Dialogues(Base):
-    __tablename__ = 'dialogues'
+class AdviceDB(Base):
+    """分析师建议表"""
+    __tablename__ = "advices"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(String(50), nullable=False)
-    role = Column(Enum('user', 'assistant'), nullable=False)
-    content = Column(Text, nullable=False)
-    four_dim_intensity = Column(Float, nullable=True)
-    four_dim_hedonic = Column(String(10), nullable=True)
-    four_dim_tension = Column(String(10), nullable=True)
-    four_dim_complexity = Column(String(10), nullable=True)
-    is_valuable = Column(Boolean, default=False, nullable=False)
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment='用户ID')
+    dialogue_id = Column(BigInteger, ForeignKey("dialogues.id"), nullable=True, comment='触发建议的对话ID（可为空）')
+    session_id = Column(String(50), nullable=False, comment='所属会话')
+    advice_json = Column(JSON, nullable=False, comment='建议内容（含融合模式、策略要点等）')
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='创建时间')
     
     # 索引
     __table_args__ = (
-        Index('idx_user_created', 'user_id', 'created_at'),
+        Index('idx_user_session', 'user_id', 'session_id'),
     )
 
-class UserArchives(Base):
-    __tablename__ = 'user_archives'
-    
-    user_id = Column(String(50), primary_key=True)
-    archive_json = Column(JSON, nullable=False)
-    version = Column(Integer, default=1, nullable=False)
-    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-    
-    # 外键
-    __table_args__ = (
-        ForeignKeyConstraint(['user_id'], ['users.id']),
-    )
-
-class Strategies(Base):
-    __tablename__ = 'strategies'
+class StrategyDB(Base):
+    """策略库表"""
+    __tablename__ = "strategies"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    intensity_level = Column(Enum('低','中','高'), nullable=False)
-    hedonic = Column(Enum('正性','中性','负性'), nullable=False)
-    tension = Column(Enum('低','中','高'), nullable=False)
-    complexity = Column(Enum('简单','复杂'), nullable=False)
-    fusion_mode = Column(String(50), nullable=False)
-    cbt_techniques = Column(Text, nullable=False)
-    tcm_methods = Column(Text, nullable=False)
-    strategy_content = Column(Text, nullable=False)
-    example = Column(Text, nullable=False)
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, nullable=True)
+    intensity_level = Column(Enum('低', '中', '高'), nullable=False, comment='强度等级')
+    hedonic = Column(Enum('正性', '中性', '负性'), nullable=False, comment='快感度')
+    tension = Column(Enum('低', '中', '高'), nullable=False, comment='紧张度')
+    complexity = Column(Enum('简单', '复杂'), nullable=False, comment='复杂度')
+    fusion_mode = Column(String(50), nullable=False, comment='融合模式')
+    cbt_techniques = Column(Text, nullable=False, comment='CBT技术')
+    tcm_methods = Column(Text, nullable=False, comment='中医方法')
+    strategy_content = Column(Text, nullable=False, comment='完整话术')
+    example = Column(Text, nullable=False, comment='示例')
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='创建时间')
     
     # 唯一约束
     __table_args__ = (
         UniqueConstraint('intensity_level', 'hedonic', 'tension', 'complexity', name='unique_combo'),
     )
 
-class Advices(Base):
-    __tablename__ = 'advices'
+# ==================== 报告模块 ====================
+
+class SessionReportDB(Base):
+    """会话报告表（每次会话结束生成）"""
+    __tablename__ = "session_reports"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(String(50), nullable=False)
-    dialogue_id = Column(BigInteger, nullable=True)
-    advice_json = Column(JSON, nullable=False)
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment='用户ID')
+    session_id = Column(String(50), nullable=False, comment='会话ID')
+    record_report_json = Column(JSON, nullable=True, comment='记录报告（情境、情绪、思维、身体症状）')
+    analysis_report_json = Column(JSON, nullable=True, comment='分析报告（四维图表数据、情绪变化、原因分析）')
+    treatment_report_json = Column(JSON, nullable=True, comment='调理报告（建议总结、CBT作业）')
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='创建时间')
+
+# ==================== 情绪记录（日记） ====================
+
+class MoodEntryDB(Base):
+    """情绪日记表"""
+    __tablename__ = "mood_entries"
     
-    # 外键
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment='用户ID')
+    entry_date = Column(String(10), nullable=False, comment='日期（唯一约束 per user）')
+    mood_label = Column(String(20), nullable=False, comment='情绪标签（如开心、焦虑）')
+    signature_text = Column(Text, nullable=True, comment='签名语句')
+    four_dim_intensity = Column(Float, nullable=True, comment='强度（可选）')
+    four_dim_hedonic = Column(String(10), nullable=True, comment='快感度')
+    four_dim_tension = Column(String(10), nullable=True, comment='紧张度')
+    four_dim_complexity = Column(String(10), nullable=True, comment='复杂度')
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='创建时间')
+    
+    # 唯一约束
     __table_args__ = (
-        ForeignKeyConstraint(['user_id'], ['users.id']),
-        ForeignKeyConstraint(['dialogue_id'], ['dialogues.id']),
+        UniqueConstraint('user_id', 'entry_date', name='unique_user_date'),
     )
 
+# ==================== 问卷自测 ====================
 
+class QuestionnaireDB(Base):
+    """问卷表"""
+    __tablename__ = "questionnaires"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False, comment='问卷名称（如PHQ-9、GAD-7）')
+    description = Column(Text, nullable=True, comment='描述')
+    questions_json = Column(JSON, nullable=False, comment='问题列表（含选项、分值）')
+    scoring_rule = Column(JSON, nullable=True, comment='计分规则（总分与等级映射）')
+
+class UserQuestionnaireResultDB(Base):
+    """用户问卷结果表"""
+    __tablename__ = "user_questionnaire_results"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment='用户ID')
+    questionnaire_id = Column(Integer, ForeignKey("questionnaires.id"), nullable=False, comment='问卷ID')
+    answers_json = Column(JSON, nullable=False, comment='用户答案')
+    total_score = Column(Integer, nullable=True, comment='总分')
+    severity = Column(String(20), nullable=True, comment='严重程度（如无、轻度、中度、重度）')
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='创建时间')
+    
+    # 索引
+    __table_args__ = (
+        Index('idx_user_date', 'user_id', 'created_at'),
+    )
+
+# ==================== 预警模块 ====================
+
+class AlertDB(Base):
+    """预警表"""
+    __tablename__ = "alerts"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment='用户ID')
+    alert_type = Column(Enum('session', 'trend'), nullable=False, comment='类型（会话内趋势不佳 / 长期趋势）')
+    alert_level = Column(Enum('warning', 'danger'), nullable=False, comment='级别')
+    message = Column(Text, nullable=False, comment='预警内容')
+    trigger_data = Column(JSON, nullable=True, comment='触发预警的数据（如情绪趋势）')
+    is_acknowledged = Column(Boolean, default=False, comment='是否已处理')
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='创建时间')
+
+# ==================== 管理员日志 ====================
+
+class AdminLogDB(Base):
+    """管理员操作日志"""
+    __tablename__ = "admin_logs"
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    admin_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment='管理员ID')
+    action = Column(String(50), nullable=False, comment='操作类型（如create_user, update_strategy）')
+    target = Column(String(100), nullable=True, comment='操作对象')
+    details = Column(Text, nullable=True, comment='详细信息')
+    ip_address = Column(String(45), nullable=True, comment='IP地址')
+    created_at = Column(TIMESTAMP, default=datetime.utcnow, comment='创建时间')
 
 # 创建所有表
-Base.metadata.create_all(bind=engine)
+print("开始创建表...")
+try:
+    Base.metadata.create_all(bind=engine)
+    print("表创建成功！")
+except Exception as e:
+    print(f"表创建失败: {e}")
