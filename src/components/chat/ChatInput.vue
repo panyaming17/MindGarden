@@ -194,7 +194,7 @@ const endCurrentChat = () => {
 }
 
 .action-buttons {
-  display: flex;
+  
   justify-content: flex-start;
   margin-bottom: 10px;
 }
@@ -223,7 +223,7 @@ const endCurrentChat = () => {
   transition: all 0.3s;
   background: #FF8A80;
   color: rgb(30, 30, 30);
-  margin-left: 590px;
+  margin-left: 10px;
 }
 
 .btn-end-chat:hover:not(:disabled) {

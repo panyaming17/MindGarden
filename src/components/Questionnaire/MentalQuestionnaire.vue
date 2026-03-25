@@ -454,7 +454,7 @@ const submitResult = () => {
   ElMessage.success('测评结果已提交！我们会尽快为你跟进～');
   
   // 这里可以添加axios请求，把resultData发送到后端
-  // axios.post('/api/questionnaire/submit', resultData)
+  // axios.post('/api/v1/questionnaire/submit', resultData)
   //   .then(res => { ... })
   //   .catch(err => { ... });
 };

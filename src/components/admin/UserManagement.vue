@@ -234,7 +234,7 @@ const addErrors = ref({
 })
 
 // API基础URL
-const API_BASE_URL = 'http://localhost:8001'
+const API_BASE_URL = 'http://localhost:8000'
 
 // 计算总页数
 const totalPages = computed(() => {
@@ -283,7 +283,7 @@ const loadUsers = async () => {
       return
     }
 
-    const url = `${API_BASE_URL}/api/admin/users?page=${page.value}&per_page=${perPage.value}&search=${encodeURIComponent(searchQuery.value)}`
+    const url = `${API_BASE_URL}/api/v1/admin/users?page=${page.value}&size=${perPage.value}&keyword=${encodeURIComponent(searchQuery.value)}`
     const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -296,7 +296,7 @@ const loadUsers = async () => {
     }
 
     const data = await response.json()
-    users.value = data.items
+    users.value = data.users
     total.value = data.total
   } catch (error) {
     console.error('Error loading users:', error)
@@ -374,9 +374,9 @@ const saveUser = async () => {
       return
     }
 
-    const url = `${API_BASE_URL}/api/admin/users/${currentUser.value.id}`
+    const url = `${API_BASE_URL}/api/v1/admin/users/${currentUser.value.id}`
     const response = await fetch(url, {
-      method: 'PATCH',
+      method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -417,7 +417,7 @@ const deleteUser = async (user) => {
       return
     }
 
-    const url = `${API_BASE_URL}/api/admin/users/${user.id}`
+    const url = `${API_BASE_URL}/api/v1/admin/users/${user.id}`
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {
@@ -536,7 +536,7 @@ const createUser = async () => {
       return
     }
 
-    const url = `${API_BASE_URL}/api/admin/users`
+    const url = `${API_BASE_URL}/api/v1/admin/users`
     const response = await fetch(url, {
       method: 'POST',
       headers: {

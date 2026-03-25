@@ -266,7 +266,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import BackGround from '../base/BackGround.vue'
 import { ElMessage } from 'element-plus'
@@ -274,7 +274,7 @@ import { ElMessage } from 'element-plus'
 const router = useRouter()
 
 // API基础URL
-const API_BASE_URL = 'http://localhost:8001'
+const API_BASE_URL = 'http://localhost:8000/api/v1/auth'
 
 // 响应式数据
 const activeTab = ref('login')
@@ -332,6 +332,26 @@ const resetErrors = reactive({
 
 // 验证码倒计时
 const countdown = ref(0)
+
+// 监听activeTab变化，当切换到重置密码标签页时初始化表单
+watch(() => activeTab.value, (newTab) => {
+  if (newTab === 'reset') {
+    // 初始化重置密码表单
+    resetForm.username = ''
+    resetForm.email = ''
+    resetForm.code = ''
+    resetForm.newPassword = ''
+    
+    // 清除错误信息
+    resetErrors.username = ''
+    resetErrors.email = ''
+    resetErrors.code = ''
+    resetErrors.password = ''
+    
+    // 重置倒计时
+    countdown.value = 0
+  }
+})
 
 // 验证用户名（中文或字母）
 const validateUsername = () => {
@@ -444,10 +464,11 @@ const sendRegisterCode = async () => {
   
   try {
     // 调用发送验证码API
-    await request(`${API_BASE_URL}/api/auth/send-register-code`, {
+    await request(`${API_BASE_URL}/send-verification-code`, {
       method: 'POST',
       body: JSON.stringify({
-        email: registerForm.email
+        email: registerForm.email,
+        type:'register'
       })
     })
     
@@ -532,7 +553,7 @@ const sendResetCode = async () => {
   
   try {
     // 调用发送验证码API
-    await request(`${API_BASE_URL}/api/auth/send-reset-code`, {
+    await request(`${API_BASE_URL}/forgot-password`, {
       method: 'POST',
       body: JSON.stringify({
         username: resetForm.username,
@@ -597,7 +618,7 @@ const handleLogin = async () => {
     isLoading.value = true
     
     // 调用登录API
-    const data = await request(`${API_BASE_URL}/api/auth/login`, {
+    const data = await request(`${API_BASE_URL}/login`, {
       method: 'POST',
       body: JSON.stringify({
         username: loginForm.username,
@@ -670,14 +691,14 @@ const handleRegister = async () => {
     isLoading.value = true
     
     // 调用注册API
-    await request(`${API_BASE_URL}/api/auth/register`, {
+    await request(`${API_BASE_URL}/register`, {
       method: 'POST',
       body: JSON.stringify({
         username: registerForm.username,
         email: registerForm.email,
         code: registerForm.code,
         password: registerForm.password,
-        role:user
+        role:'user'
       })
     })
     
@@ -716,7 +737,7 @@ const handleResetPassword = async () => {
     isLoading.value = true
     
     // 调用重置密码API
-    await request(`${API_BASE_URL}/api/auth/reset-password`, {
+    await request(`${API_BASE_URL}/reset-password`, { 
       method: 'POST',
       body: JSON.stringify({
         username: resetForm.username,

@@ -13,11 +13,18 @@
           />
         </div>
         <div class="filter-item">
-          <el-input
+          <el-select
             v-model="filters.action"
             placeholder="操作类型"
             clearable
-          />
+          >
+            <el-option
+              v-for="action in actionOptions"
+              :key="action.value"
+              :label="action.label"
+              :value="action.value"
+            />
+          </el-select>
         </div>
         <div class="filter-item date-range">
           <el-date-picker
@@ -44,11 +51,11 @@
       style="width: 100%"
       border
     >
-      <el-table-column prop="admin_id" label="管理员ID" width="120" />
+      <el-table-column prop="id" label="序号" width="80" />
+      <el-table-column prop="admin_id" label="管理员名称" width="120" />
       <el-table-column prop="action" label="操作类型" width="150" />
-      <el-table-column prop="target_type" label="目标类型" width="120" />
-      <el-table-column prop="target_id" label="目标ID" width="120" />
-      <el-table-column label="详情摘要" width="200">
+      <el-table-column prop="target" label="目标" width="120" />
+      <el-table-column label="详情" width="250">
         <template #default="scope">
           <span v-if="isJson(scope.row.details)">
             <el-button type="text" @click="showDetails(scope.row)">查看详情</el-button>
@@ -56,6 +63,7 @@
           <span v-else>{{ scope.row.details }}</span>
         </template>
       </el-table-column>
+      <el-table-column prop="ip_address" label="IP地址" width="120" />
       <el-table-column prop="created_at" label="创建时间" width="180">
         <template #default="scope">
           {{ formatDate(scope.row.created_at) }}
@@ -118,12 +126,22 @@ const filters = ref({
   dateRange: []
 })
 
+// 操作类型选项
+const actionOptions = ref([
+  { value: 'create_strategy', label: '创建策略' },
+  { value: 'update_strategy', label: '更新策略' },
+  { value: 'delete_strategy', label: '删除策略' },
+  { value: 'create_user', label: '创建用户' },
+  { value: 'update_user', label: '更新用户' },
+  { value: 'delete_user', label: '删除用户' }
+])
+
 // 详情对话框
 const dialogVisible = ref(false)
 const currentLog = ref(null)
 
 // API基础URL
-const API_BASE_URL = 'http://localhost:8001'
+const API_BASE_URL = 'http://localhost:8000'
 
 // 加载审计日志
 const loadAuditLogs = async () => {
@@ -152,7 +170,10 @@ const loadAuditLogs = async () => {
       params.append('end_date', filters.value.dateRange[1])
     }
 
-    const url = `${API_BASE_URL}/api/admin/logs/audit?${params.toString()}`
+    const url = `${API_BASE_URL}/api/v1/admin/logs?${params.toString()}`
+    console.log('获取日志信息接口:', url)
+    console.log('获取日志信息参数:', params.toString())
+    
     const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -165,8 +186,30 @@ const loadAuditLogs = async () => {
     }
 
     const data = await response.json()
-    auditLogs.value = data.items
+    console.log('获取日志信息响应:', data)
+    auditLogs.value = data.logs
     total.value = data.total
+    
+    // 从日志数据中提取唯一的操作类型，动态更新操作类型选项
+    const uniqueActions = [...new Set(data.logs.map(log => log.action))]
+    const dynamicActionOptions = uniqueActions.map(action => {
+      const existingOption = actionOptions.value.find(opt => opt.value === action)
+      if (existingOption) {
+        return existingOption
+      } else {
+        return { value: action, label: action }
+      }
+    })
+    
+    // 合并静态选项和动态选项，确保不重复
+    const mergedOptions = [...actionOptions.value]
+    dynamicActionOptions.forEach(option => {
+      if (!mergedOptions.find(opt => opt.value === option.value)) {
+        mergedOptions.push(option)
+      }
+    })
+    
+    actionOptions.value = mergedOptions
   } catch (error) {
     console.error('Error loading audit logs:', error)
     ElMessage.error(error.message || '获取审计日志失败')

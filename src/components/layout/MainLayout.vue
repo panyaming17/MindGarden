@@ -52,7 +52,7 @@ const handleSelectFunction = (functionName) => {
   display: flex;
   height: 100vh;
   overflow: hidden;
-  position: relative;
+
 }
 
 /* 确保侧边栏和主内容区域有正确的宽度分配 */

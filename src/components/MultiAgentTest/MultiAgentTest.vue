@@ -46,7 +46,7 @@ import StepsState from '../chat/StepsState.vue'
 import { Loading } from '@element-plus/icons-vue'
 
 // API基础URL
-const API_BASE_URL = 'http://localhost:8001'
+const API_BASE_URL = 'http://localhost:8000 '
 
 // 组件属性
 const props = defineProps({
@@ -182,7 +182,7 @@ const sendMessage = async (content) => {
 // 自动生成患者消息
 const generatePatientMessage = async (messageType = 'greeting') => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/dialogue/patient`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/dialogue/patient`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -528,7 +528,7 @@ const startTest = async () => {
     if (!sessionData.sessionId) {
       // 创建会话
       try {
-        const createSessionResponse = await fetch(`${API_BASE_URL}/api/conversations/create`, {
+        const createSessionResponse = await fetch(`${API_BASE_URL}/api/v1/conversations/create`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -556,7 +556,7 @@ const startTest = async () => {
     isTesting.value = true
     
     // 调用后端API开始测试
-    const response = await fetch(`${API_BASE_URL}/api/conversations/start-test`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/conversations/start-test`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -596,7 +596,7 @@ const pauseTest = async () => {
     clearAllTimeouts()
     
     // 调用后端API暂停测试
-    const response = await fetch(`${API_BASE_URL}/api/conversations/pause-test`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/conversations/pause-test`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -654,7 +654,7 @@ const endChat = async () => {
     
     // 调用后端API结束对话（即使API调用失败，也继续结束对话）
     try {
-      const response = await fetch(`${API_BASE_URL}/api/conversations/end`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/conversations/end`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

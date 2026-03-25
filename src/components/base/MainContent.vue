@@ -53,9 +53,22 @@ const props = defineProps({
   position: relative;
   overflow: hidden;
   display: flex;
-  flex-direction: column;
   min-width: 0;
   height: 100%;
+  overflow-y: hidden;
+}
+
+/* 确保背景图在最底层 */
+.background-container {
+  z-index: 0;
+}
+
+/* 确保其他内容在背景图之上 */
+.chat-container,
+.function-content,
+.questionnaire-content {
+  position: relative;
+  z-index: 1;
 }
 
 .greeting-section {
@@ -197,7 +210,7 @@ const props = defineProps({
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   padding: 30px;
-  overflow-y: auto;
+  /* overflow-y: auto; */
 }
 .function-content {
   position: relative;

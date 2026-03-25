@@ -28,16 +28,16 @@
         <div class="message-footer">
           <!-- 操作按钮：复制、重新生成、点赞、点踩 -->
           <div class="message-actions">
-            <el-tooltip content="复制" placement="bottom" :effect="'dark'" :offset="[0, 5]">
+            <el-tooltip content="复制" placement="bottom" effect="dark" :offset="5">
               <el-icon class="action-icon" size="16"><CopyDocument /></el-icon>
             </el-tooltip>
-            <el-tooltip content="重新生成" placement="bottom" :effect="'dark'" :offset="[0, 5]">
+            <el-tooltip content="重新生成" placement="bottom" effect="dark" :offset="5">
               <el-icon class="action-icon" size="16"><RefreshRight /></el-icon>
             </el-tooltip>
-            <el-tooltip content="点赞" placement="bottom" :effect="'dark'" :offset="[0, 5]">
+            <el-tooltip content="点赞" placement="bottom" effect="dark" :offset="5">
               <img src="/src/assets/icons/ThumbsUp.svg" class="action-icon" alt="点赞" />
             </el-tooltip>
-            <el-tooltip content="点踩" placement="bottom" :effect="'dark'" :offset="[0, 5]">
+            <el-tooltip content="点踩" placement="bottom" effect="dark" :offset="5">
               <img src="/src/assets/icons/ThumbsDown.svg" class="action-icon" alt="点踩" />
             </el-tooltip>
           </div>
@@ -93,7 +93,7 @@ const props = defineProps({
   },
   currentRole: {
     type: String,
-    default: '记录师'
+    default: '小园'
   }
 })
 
@@ -119,15 +119,8 @@ const getUserInfo = () => {
 const getAvatarClass = computed(() => {
   const base = 'avatar'
   if (props.message.type === 'user') return `${base} user-avatar`
-  if (props.message.type === 'system') {
-    switch(props.currentRole) {
-      case '记录师': return `${base} recorder-avatar`
-      case '分析师': return `${base} analyst-avatar`
-      case '调理师': return `${base} recorder-avatar`
-      default: return `${base} recorder-avatar`
-    }
-  }
-  return `${base} ${props.message.role}-avatar`
+  if (props.message.type === 'assistant' || props.message.type === 'system') return `${base} xiaoxiao-avatar`
+  return base
 })
 
 const getAvatarText = computed(() => {
@@ -135,20 +128,7 @@ const getAvatarText = computed(() => {
     const userInfo = getUserInfo()
     return userInfo.name.charAt(0) || '我'
   }
-  if (props.message.type === 'system') {
-    switch(props.currentRole) {
-      case '记录师': return '记'
-      case '分析师': return '分'
-      case '调理师': return '调'
-      default: return 'AI'
-    }
-  }
-  switch(props.message.role) {
-    case '记录师': return '记'
-    case '分析师': return '分'
-    case '调理师': return '调'
-    default: return 'AI'
-  }
+  return '园'
 })
 
 const getAvatarImage = computed(() => {
@@ -166,8 +146,8 @@ const displayRole = computed(() => {
     const userInfo = getUserInfo()
     return userInfo.name || '用户'
   }
-  if (props.message.type === 'system') return props.currentRole
-  return props.message.role
+  // 智能体显示名称为"小园"
+  return '小园'
 })
 
 // 格式化时间

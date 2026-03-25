@@ -22,7 +22,7 @@ const props = defineProps({
   },
   currentRole: {
     type: String,
-    default: '记录师'
+    default: '小园'
   }
 })
 

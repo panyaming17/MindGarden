@@ -1,7 +1,7 @@
 <template>
   <div class="chat-container">
-    <!-- 外层1：StepsState 组件 -->
-    <StepsState :activeStep="activeStep">
+    <!-- 标题 -->
+     <div class="title-container">{{ title }}</div>
       <!-- 内层2：聊天区 -->
       <div class="chat-app">
         <!-- 聊天内容区域（可滚动） -->
@@ -30,7 +30,6 @@
           />
         </div>
       </div>
-    </StepsState>
   </div> 
   
 </template>
@@ -39,570 +38,236 @@
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import ChatMessages from './ChatMessages/ChatMessages.vue'
 import ChatInput from './ChatInput.vue'
-import StepsState from './StepsState.vue'
 import { Loading } from '@element-plus/icons-vue'
 
 // API基础URL
-const API_BASE_URL = 'http://localhost:8001'
-
-// 组件属性
-const props = defineProps({
-  // 外部传入的对话数据
-  conversationData: {
-    type: Object,
-    default: null
-  }
-})
+const API_BASE_URL = 'http://localhost:8000/api/v1/chat'
 
 // 响应式数据
 const messages = ref([])
-const currentRole = ref('记录师')
+const currentRole = ref('小园')
 const isAnalyzing = ref(false)
 const isProcessing = ref(false)
-const connectionStatus = ref('connected')
-const activeStep = ref(0) // 0: 记录, 1: 分析, 2: 建议
-const chatContentRef = ref(null) // 聊天内容区域引用
+const inputPlaceholder = ref('请输入内容...')
+const analyzingText = ref('分析中...')
+const chatContentRef = ref(null)
+const title = ref('小园')
 
-// 监听对话数据变化
-watch(() => props.conversationData, (newData) => {
-  if (newData) {
-    loadConversationData(newData)
-  }
-}, { immediate: true })
-
-// 加载对话数据
-const loadConversationData = (conversation) => {
-  if (conversation && conversation.messages) {
-    messages.value = conversation.messages
-    // 根据对话数据设置当前角色和步骤
-    if (conversation.currentPhase) {
-      sessionData.currentPhase = conversation.currentPhase
-    }
-    if (conversation.activeStep !== undefined) {
-      activeStep.value = conversation.activeStep
-    }
-    if (conversation.currentRole) {
-      currentRole.value = conversation.currentRole
-    }
-    // 滚动到底部
-    nextTick(() => {
-      scrollToBottom()
-    })
-  }
-}
-
-// 滚动到最底部
-const scrollToBottom = async () => {
-  await nextTick()
-  if (chatContentRef.value) {
-    chatContentRef.value.scrollTop = chatContentRef.value.scrollHeight
-    console.log('scrollTop:', chatContentRef.value.scrollTop)
-    console.log('scrollHeight:', chatContentRef.value.scrollHeight)
-  }
-}
-
-// 监听消息变化，自动滚动到底部
-watch(() => messages.value.length, () => {
-  scrollToBottom()
-})
-
-// 组件挂载时滚动到底部
-onMounted(() => {
-  scrollToBottom()
-})
-
-// 会话数据，这里的数据类型是Object对象
+// 会话数据
 const sessionData = reactive({
   sessionId: null,
-  recordId: null,
-  reportId: null,
-  currentPhase: 'recorder' // recorder, analyst, therapist
+  sessionTitle: null
 })
 
-// 计算属性
-const inputPlaceholder = computed(() => {
-  if (isAnalyzing.value || isProcessing.value) return '系统正在处理...'
-  return '请输入内容...'
+// 组件挂载时添加欢迎消息
+onMounted(() => {
+  addWelcomeMessage()
+  createNewSession()
 })
 
-const analyzingText = computed(() => {
-  switch (sessionData.currentPhase) {
-    case 'analyst':
-      return '分析师正在分析中...'
-    case 'therapist':
-      return '调理师正在生成疏导方案...'
-    default:
-      return '系统正在处理...'
-  }
-})
-
-// 发送消息
-const sendMessage = async (content) => {
-  // 1. 添加用户消息
-  const userMsg = {
-    id: Date.now(),
-    type: 'user',
-    content,
-    timestamp: new Date()
-  }
-  messages.value.push(userMsg)
-  
-  // 2. 根据当前阶段处理
-  switch (sessionData.currentPhase) {
-    case 'recorder':
-      await handleRecorderConversation(content)
-      break
-    case 'analyst':
-      // 分析阶段不需要用户输入，自动处理
-      // await triggerAnalysis()
-      break
-    case 'therapist':
-      // 调理阶段不需要用户输入，自动处理
-      // await triggerTherapy()
-      break
-  }
+// 添加欢迎消息
+const addWelcomeMessage = () => {
+  messages.value = [
+    {
+      id: 'welcome',
+      type: 'assistant',
+      role: '小园',
+      content: '你好！我是小园，你的专属情绪陪伴助手。无论你此刻心情如何，我都在这里倾听你、陪伴你。你可以和我分享你的心事、困惑，或者只是随便聊聊。让我们一起探索情绪的奥秘，找到内心的平静与力量吧！',
+      timestamp: new Date().toISOString(),
+      hint: '由AI生成对话内容，仅供参考'
+    }
+  ]
 }
 
-// 处理记录师对话
-const handleRecorderConversation = async (content) => {
-  isProcessing.value = true
+// 创建新会话
+const createNewSession = async () => {
   try {
-    // 构建请求参数
-    const requestData = {
-      user_input: content
-    }
+    const userData = localStorage.getItem('user')
+    const userId = userData ? JSON.parse(userData).id : null
+    if (!userId) throw new Error('用户未登录')
     
-    // 只有当sessionId存在时才传递
-    if (sessionData.sessionId) {
-      requestData.session_id = sessionData.sessionId
-    }
-    
-    const response = await fetch(`${API_BASE_URL}/recorder/converse`, { 
+    const response = await fetch(`${API_BASE_URL}/new-session`, { 
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestData)
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId })
     })
     
-    if (!response.ok) {
-      throw new Error('对话失败')
-    }
-    
+    if (!response.ok) throw new Error('创建会话失败')
     const data = await response.json()
     
-    // 保存会话ID
-    if (data.session_id) {
+    // 验证会话ID和标题
+    if (data.session_id && data.session_title) {
       sessionData.sessionId = data.session_id
+      sessionData.sessionTitle = data.session_title
+      console.log('会话ID和标题获取成功:', sessionData.sessionId, sessionData.sessionTitle)
+    } else {
+      console.error('会话ID或标题获取失败:', data)
+      throw new Error('会话ID或标题获取失败')
     }
-    
-    // 添加记录师回复
-    const recorderMsg = {
-      id: Date.now() + 1,
-      type: 'assistant',
-      role: '记录师',
-      content: data.llm_response,
-      hint: '由AI生成对话内容，仅供参考。',
-      timestamp: new Date()
-    }
-    messages.value.push(recorderMsg)
-    
-    // 检查是否需要触发分析
-    if (data.next_action === 'trigger_analyst' && data.record_id) {
-      sessionData.recordId = data.record_id
-      // 调用记录报告创建接口
-      await createRecordReport()
-      await triggerAnalysis()
-    }
+    return data
   } catch (error) {
-    console.error('对话失败:', error)
-    // 添加错误消息
-    const errorMsg = {
-      id: Date.now() + 1,
-      type: 'system',
-      content: '对话失败，请重试。',
-      timestamp: new Date()
+    console.error('创建会话失败:', error)
+    throw error
+  }
+}
+
+// 发送消息
+const sendMessage = async (text) => {
+  if (!text.trim()) return
+  
+  // 添加用户消息
+  const userMessage = {
+    id: Date.now().toString(),
+    type: 'user',
+    role: 'user',
+    content: text,
+    timestamp: new Date().toISOString()
+  }
+  messages.value.push(userMessage)
+  
+  // 滚动到底部
+  scrollToBottom()
+  
+  // 显示分析中状态
+  isProcessing.value = true
+  
+  try {
+    const userData = localStorage.getItem('user')
+    const userId = userData ? JSON.parse(userData).id : null
+    if (!userId) throw new Error('用户未登录')
+    if (!sessionData.sessionId) throw new Error('会话ID不存在')
+    
+    const response = await fetch(`${API_BASE_URL}/message`, { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        session_id: sessionData.sessionId,
+        message: text
+      })
+    })
+    
+    if (!response.ok) throw new Error('发送消息失败')
+    const data = await response.json()
+    
+    // 打印响应数据，便于调试
+    console.log('后端响应数据:', data)
+    
+    // 添加智能体回复
+    const assistantMessage = {
+      id: (Date.now() + 1).toString(),
+      type: 'assistant',
+      role: '小园',
+      content: data.response || data.reply || '我理解你的感受。',
+      timestamp: new Date().toISOString(),
+      hint: '由AI生成对话内容，仅供参考'
     }
-    messages.value.push(errorMsg)
+    messages.value.push(assistantMessage)
+    
+  } catch (error) {
+    console.error('发送消息失败:', error)
+    // 添加错误消息
+    const errorMessage = {
+      id: (Date.now() + 2).toString(),
+      type: 'assistant',
+      role: '小园',
+      content: '抱歉，我暂时无法回复你的消息。请稍后再试。',
+      timestamp: new Date().toISOString()
+    }
+    messages.value.push(errorMessage)
   } finally {
     isProcessing.value = false
+    scrollToBottom()
   }
-}
-
-// 创建记录报告
-const createRecordReport = async () => {
-  try {
-    // 从localStorage获取用户信息
-    const storedUser = localStorage.getItem('user');
-    const userId = storedUser ? JSON.parse(storedUser).id || 'current_user' : 'current_user';
-    
-    // 构建对话日志
-    const conversationLog = messages.value.map(msg => ({
-      role: msg.type === 'user' ? 'user' : 'assistant',
-      content: msg.content
-    }));
-    
-    const response = await fetch(`${API_BASE_URL}/recorder/record-reports`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        session_id: sessionData.sessionId,
-        user_id: userId,
-        duration: 120.5, // 暂时硬编码，实际应该计算对话时长
-        conversation_log: conversationLog,
-        situation: '用户情绪困扰', // 暂时默认值，实际应该从对话中提取
-        automatic_thoughts: [], // 暂时空数组，实际应该从对话中提取
-        emotions: [], // 暂时空数组，实际应该从对话中提取
-        physical_sensations: [], // 暂时空数组，实际应该从对话中提取
-        summary: '用户情绪对话记录' // 暂时默认值，实际应该从对话中提取
-      })
-    });
-    
-    if (!response.ok) {
-      throw new Error('创建记录报告失败');
-    }
-    
-    const data = await response.json();
-    console.log('记录报告创建成功:', data);
-    
-    // 保存record_id
-    if (data.record_id) {
-      sessionData.recordId = data.record_id;
-    }
-  } catch (error) {
-    console.error('创建记录报告失败:', error);
-    // 添加错误消息
-    const errorMsg = {
-      id: Date.now() + 1,
-      type: 'system',
-      content: '创建记录报告失败，请重试。',
-      timestamp: new Date()
-    };
-    messages.value.push(errorMsg);
-  }
-}
-
-// 触发分析
-const triggerAnalysis = async () => {
-  activeStep.value = 1
-  sessionData.currentPhase = 'analyst'
-  currentRole.value = '分析师'
-  isAnalyzing.value = true
-  
-  try {
-    // 请求分析
-    const analyzeResponse = await fetch(`${API_BASE_URL}/analyst/analyze`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        record_id: sessionData.recordId,
-        priority: 'high'
-      })
-    })
-    
-    if (!analyzeResponse.ok) {
-      throw new Error('分析请求失败')
-    }
-    
-    const analyzeData = await analyzeResponse.json()
-    
-    // 检查分析状态
-    if (analyzeData.status === 'completed' && analyzeData.report_id) {
-      sessionData.reportId = analyzeData.report_id
-      await getAnalysisReport()
-    } else {
-      // 模拟分析完成（实际项目中可能需要轮询或等待回调）
-      setTimeout(async () => {
-        // 假设分析完成，获取报告
-        await getAnalysisReport()
-      }, 3000)
-    }
-  } catch (error) {
-    console.error('分析失败:', error)
-    // 添加错误消息
-    const errorMsg = {
-      id: Date.now() + 1,
-      type: 'system',
-      content: '分析失败，请重试。',
-      timestamp: new Date()
-    }
-    messages.value.push(errorMsg)
-    isAnalyzing.value = false
-  }
-}
-
-// 获取分析报告
-const getAnalysisReport = async () => {
-  try {
-    const reportResponse = await fetch(`${API_BASE_URL}/analyst/report/${sessionData.reportId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
-    
-    if (!reportResponse.ok) {
-      throw new Error('获取报告失败')
-    }
-    
-    const reportData = await reportResponse.json()
-    
-    // 添加分析师报告
-    const analystMsg = {
-      id: Date.now() + 1,
-      type: 'assistant',
-      role: '分析师',
-      content: `分析报告：\n\n认知行为分析：${reportData.content.cbt_summary}\n\n中医情志分析：${reportData.content.tcm_summary}`,
-      hint: '由AI生成分析报告，仅供参考。',
-      timestamp: new Date()
-    }
-    messages.value.push(analystMsg)
-    
-    // 触发调理师生成疏导方案
-    await generateTherapyPlan()
-  } catch (error) {
-    console.error('获取报告失败:', error)
-    // 添加错误消息
-    const errorMsg = {
-      id: Date.now() + 1,
-      type: 'system',
-      content: '获取报告失败，请重试。',
-      timestamp: new Date()
-    }
-    messages.value.push(errorMsg)
-    isAnalyzing.value = false
-  }
-}
-
-// 生成疏导方案
-const generateTherapyPlan = async () => {
-  activeStep.value = 2
-  sessionData.currentPhase = 'therapist'
-  currentRole.value = '调理师'
-  
-  try {
-    const therapyResponse = await fetch(`${API_BASE_URL}/therapist/generate-plan`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        report_id: sessionData.reportId,
-        user_preference: 'balanced'
-      })
-    })
-    
-    if (!therapyResponse.ok) {
-      throw new Error('生成疏导方案失败')
-    }
-    
-    const therapyData = await therapyResponse.json()
-    
-    // 添加调理师疏导方案
-    const therapistMsg = {
-      id: Date.now() + 1,
-      type: 'assistant',
-      role: '调理师',
-      content: `疏导方案：\n\n${therapyData.therapy_plan}\n\n${therapyData.therapist_summary}`,
-      hint: '由AI生成疏导方案，仅供参考。',
-      timestamp: new Date()
-    }
-    messages.value.push(therapistMsg)
-    
-    // 获取策略模板
-    await getTherapyStrategies()
-  } catch (error) {
-    console.error('生成疏导方案失败:', error)
-    // 添加错误消息
-    const errorMsg = {
-      id: Date.now() + 1,
-      type: 'system',
-      content: '生成疏导方案失败，请重试。',
-      timestamp: new Date()
-    }
-    messages.value.push(errorMsg)
-  } finally {
-    isAnalyzing.value = false
-  }
-}
-
-// 获取策略模板
-const getTherapyStrategies = async () => {
-  try {
-    const strategiesResponse = await fetch(`${API_BASE_URL}/therapist/strategies`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
-    
-    if (!strategiesResponse.ok) {
-      throw new Error('获取策略模板失败')
-    }
-    
-    const strategiesData = await strategiesResponse.json()
-    
-    // 添加策略模板消息
-    const strategiesMsg = {
-      id: Date.now() + 1,
-      type: 'assistant',
-      role: '调理师',
-      content: `可选干预策略：\n\n认知行为策略：${strategiesData.cbt_strategies.join('、')}\n\n中医策略：${strategiesData.tcm_strategies.join('、')}\n\n综合方法：${strategiesData.integrated_approaches.join('、')}`,
-      hint: '由AI生成策略建议，仅供参考。',
-      timestamp: new Date()
-    }
-    messages.value.push(strategiesMsg)
-  } catch (error) {
-    console.error('获取策略模板失败:', error)
-    // 策略模板获取失败不影响主流程，仅记录错误
-  }
-}
-
-// 处理消息点击
-const handleMessageClick = (message) => {
-  console.log('Message clicked:', message)
 }
 
 // 开始新对话
 const startNewChat = () => {
   messages.value = []
-  currentRole.value = '记录师'
-  activeStep.value = 0
-  
-  // 重置会话数据
-  sessionData.sessionId = null
-  sessionData.recordId = null
-  sessionData.reportId = null
-  sessionData.currentPhase = 'recorder'
-  
-  // 初始化欢迎消息
-  const welcomeMsg = {
-    id: Date.now(),
-    type: 'assistant',
-    role: '记录师',
-    content: '你好，我是记录师。请问你最近有什么情绪困扰需要倾诉吗？',
-    hint: '由AI生成对话内容，仅供参考。',
-    timestamp: new Date()
-  }
-  messages.value.push(welcomeMsg)
+  addWelcomeMessage()
+  createNewSession()
 }
 
 // 结束对话
 const endChat = async () => {
-  // 检查是否有报告生成
-  const hasReport = !!sessionData.reportId
-  // 检查是否有记录报告
-  const hasRecordReport = !!sessionData.recordId
-  // 弹出确认对话框
-  let confirmMessage = ''
-  if (activeStep.value === 2) {
-    // 建议阶段
-    confirmMessage = '确定要结束对话吗？对话内容将被保存到对话记录中。'
-  } else if (hasReport) {
-    // 有报告生成
-    confirmMessage = `确定要结束当前${activeStep.value === 0 ? '记录' : '分析'}阶段的对话吗？对话内容和报告将被保存到对话记录中。`
-  } else if (hasRecordReport) {
-    // 有记录报告但无分析报告
-    confirmMessage = `确定要结束当前${activeStep.value === 0 ? '记录' : '分析'}阶段的对话吗？对话内容和记录报告将被保存到对话记录中。`
-  } else {
-    // 无报告生成
-    confirmMessage = `确定要结束当前${activeStep.value === 0 ? '记录' : '分析'}阶段的对话吗？由于没有生成报告，本次对话将不会被保存。`
-  }
-  
-  if (!confirm(confirmMessage)) {
-    return
-  }
-  
   try {
-    isProcessing.value = true
+    const userData = localStorage.getItem('user')
+    const userId = userData ? JSON.parse(userData).id : null
+    if (!userId) throw new Error('用户未登录')
+    if (!sessionData.sessionId) throw new Error('会话ID不存在')
     
-    // 调用后端API保存对话历史
-    if ((hasReport || hasRecordReport) && sessionData.sessionId) {
-      // 从localStorage获取用户信息
-      const storedUser = localStorage.getItem('user');
-      const userId = storedUser ? JSON.parse(storedUser).id || 'current_user' : 'current_user';
-      
-      const saveResponse = await fetch(`${API_BASE_URL}/api/dialogue/save-history`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          session_id: sessionData.sessionId,
-          title: '对话记录',
-          user_id: userId
-        })
+    const response = await fetch(`${API_BASE_URL}/end-session`, { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        session_id: sessionData.sessionId
       })
-      
-      if (!saveResponse.ok) {
-        // 尝试获取错误信息
-        const errorData = await saveResponse.json().catch(() => ({}));
-        if (errorData.message && errorData.message.includes('记录报告尚未完成')) {
-          throw new Error('记录报告尚未完成，无法保存对话');
-        }
-        throw new Error('保存对话失败');
-      }
-      
-      const saveData = await saveResponse.json()
-      console.log('对话保存成功:', saveData)
-    }
+    })
     
-    // 显示成功消息
-    alert('对话已成功结束')
+    if (!response.ok) throw new Error('结束会话失败')
     
-    // 开始新对话
-    startNewChat()
+    // 清空消息
+    messages.value = []
+    addWelcomeMessage()
+    createNewSession()
+    
   } catch (error) {
-    console.error('结束对话失败:', error)
-    // 处理特定错误
-    if (error.message.includes('记录报告尚未完成')) {
-      alert('记录报告尚未完成，无法保存对话。请先完成记录报告后再结束对话。');
-    } else {
-      alert('结束对话失败，请重试');
-    }
-  } finally {
-    isProcessing.value = false
+    console.error('结束会话失败:', error)
   }
 }
 
-// 初始化示例数据
-onMounted(() => {
-  // 只有在没有从props传入对话数据时才初始化示例数据
-  if (!props.conversationData) {
-    messages.value = [
-      {
-        id: 1,
-        type: 'assistant',
-        role: '记录师',
-        content: '你好，我是记录师。请问你最近有什么情绪困扰需要倾诉吗？',
-        hint: '由AI生成对话内容，仅供参考。',
-        timestamp: new Date()
-      }
-    ]
-  }
-})
+// 滚动到底部
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (chatContentRef.value) {
+      chatContentRef.value.scrollTop = chatContentRef.value.scrollHeight
+    }
+  })
+}
+
+// 处理消息点击
+const handleMessageClick = (message) => {
+  console.log('点击了消息:', message)
+}
+
+// 监听消息变化，自动滚动到底部
+watch(messages, () => {
+  scrollToBottom()
+}, { deep: true })
+
 </script>
 
 <style scoped>
 .chat-container {
   height: 100%;
   width: 100%;
+  max-width: 800px;
   display: flex;
   flex-direction: column;
   background: transparent;
+  margin: 0 auto;
+}
+
+/* 标题样式 */
+.title-container {
+  text-align: center;
+  font-size: 24px;
+  font-weight: bold;
+  color: #4CAF50;
+  margin: 20px 0;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(238, 238, 238, 0.5);
 }
 
 .chat-app {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
   width: 100%;
   /* 背景透明 */
   background: transparent;
+  position: relative;
 }
 
 /* 聊天内容区域 */
@@ -610,7 +275,7 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
   margin-right: -8px;
-  padding-right: 180px;
+  padding-right: 16px;
   min-height: 0;
 }
 
@@ -636,10 +301,10 @@ onMounted(() => {
 
 /* 输入框固定在底部 */
 .chat-input-fixed {
-  /* margin-top: 20px; */
-  /* padding-top: 20px; */
-  margin-right: 180px;
   border-top: 1px solid rgba(238, 238, 238, 0.5);
+  margin-right: 0;
+  width: 100%;
+  background: transparent;
 }
 
 /* 确保聊天内容区域占满可用空间 */
@@ -656,24 +321,6 @@ onMounted(() => {
   background: transparent !important;
 }
 
-/* 分析中状态提示 */
-.analyzing-indicator {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 12px;
-  margin: 10px 0;
-  background-color: rgba(102, 126, 234, 0.1);
-  border-radius: 8px;
-  border: 1px solid rgba(102, 126, 234, 0.3);
-  color: #667eea;
-  font-size: 14px;
-}
-
-.analyzing-indicator .is-loading {
-  animation: rotate 1s linear infinite;
-}
 
 @keyframes rotate {
   from {
