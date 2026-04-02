@@ -46,7 +46,7 @@ import StepsState from '../chat/StepsState.vue'
 import { Loading } from '@element-plus/icons-vue'
 
 // API基础URL
-const API_BASE_URL = 'http://localhost:8000 '
+const API_BASE_URL = 'http://localhost:8000'
 
 // 组件属性
 const props = defineProps({

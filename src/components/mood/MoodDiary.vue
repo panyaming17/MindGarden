@@ -2,98 +2,73 @@
   <div class="mood-diary">
     <h2 class="page-title">情绪日记</h2>
     
-    <!-- 日历视图 -->
-    <div class="calendar-section">
-      <h3>情绪日历</h3>
-      <MoodCalendar 
-        :calendar-data="calendarData" 
-        @date-click="handleDateClick"
-      />
-    </div>
-    
-    <!-- 情绪记录表单 -->
-    <div class="form-section">
-      <h3>{{ selectedDate }} 情绪记录</h3>
-      <div class="mood-form">
-        <div class="form-group">
-          <label>情绪标签</label>
-          <el-select v-model="moodForm.mood_label" placeholder="请选择情绪" class="w-full">
-            <el-option label="开心" value="开心" />
-            <el-option label="平静" value="平静" />
-            <el-option label="焦虑" value="焦虑" />
-            <el-option label="抑郁" value="抑郁" />
-            <el-option label="愤怒" value="愤怒" />
-            <el-option label="恐惧" value="恐惧" />
-            <el-option label="压力" value="压力" />
-          </el-select>
+    <div class="diary-content">
+      <!-- 当天日期卡片 -->
+      <div class="date-card">
+        <h3 class="card-title">情绪日历 今日情绪记录</h3>
+        <div class="current-date">
+          {{ formatCurrentDate() }}
         </div>
-        
-        <div class="form-group">
-          <label>签名语句</label>
-          <el-input 
-            v-model="moodForm.signature_text" 
-            type="textarea" 
-            placeholder="记录今天的心情..."
-            rows="3"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label>情绪强度</label>
-          <el-slider 
-            v-model="moodForm.four_dim_intensity" 
-            :min="0" 
-            :max="10" 
-            :step="0.5"
-            show-input
-          />
-        </div>
-        
-        <div class="form-row">
-          <div class="form-group half">
-            <label>快感度</label>
-            <el-select v-model="moodForm.four_dim_hedonic" placeholder="请选择" class="w-full">
-              <el-option label="正性" value="正性" />
-              <el-option label="中性" value="中性" />
-              <el-option label="负性" value="负性" />
+        <div class="mood-form">
+          <div class="form-group">
+            <label>情绪选择（下拉选择表情）</label>
+            <el-select v-model="moodForm.mood_label" placeholder="请选择情绪" class="w-full">
+              <el-option label="喜 😊" value="喜" />
+              <el-option label="怒 😠" value="怒" />
+              <el-option label="忧 😟" value="忧" />
+              <el-option label="思 😔" value="思" />
+              <el-option label="悲 😢" value="悲" />
+              <el-option label="恐 😨" value="恐" />
+              <el-option label="惊 😰" value="惊" />
             </el-select>
           </div>
           
-          <div class="form-group half">
-            <label>紧张度</label>
-            <el-select v-model="moodForm.four_dim_tension" placeholder="请选择" class="w-full">
-              <el-option label="低" value="低" />
-              <el-option label="中" value="中" />
-              <el-option label="高" value="高" />
-            </el-select>
+          <div class="form-group">
+            <label>情绪标签，输入框</label>
+            <el-input 
+              v-model="moodForm.signature_text" 
+              placeholder="输入情绪标签..."
+            />
           </div>
+          
+          <el-button 
+            type="primary" 
+            @click="saveMoodEntry"
+            :loading="isSaving"
+          >
+            保存记录
+          </el-button>
         </div>
-        
-        <div class="form-row">
-          <div class="form-group half">
-            <label>复杂度</label>
-            <el-select v-model="moodForm.four_dim_complexity" placeholder="请选择" class="w-full">
-              <el-option label="简单" value="简单" />
-              <el-option label="中等" value="中等" />
-              <el-option label="复杂" value="复杂" />
-            </el-select>
-          </div>
-        </div>
-        
-        <el-button 
-          type="primary" 
-          @click="saveMoodEntry"
-          :loading="isSaving"
-        >
-          保存记录
-        </el-button>
       </div>
-    </div>
-    
-    <!-- 情绪趋势 -->
-    <div class="trend-section">
-      <h3>情绪趋势</h3>
-      <MoodTrend :trend-data="trendData" />
+      
+      <!-- 缩小的日历 -->
+      <div class="calendar-side">
+        <h3 class="calendar-title">情绪日历</h3>
+        <MoodCalendar 
+          :calendar-data="calendarData" 
+          @date-click="handleDateClick"
+        />
+        
+        <!-- 浮窗显示当天的心情标签和情绪表情 -->
+        <el-popover
+          v-model:visible="popoverVisible"
+          :width="200"
+          trigger="manual"
+          :placement="'top'"
+          :popper-options="{ offset: [0, 10] }"
+        >
+          <template #default>
+            <div class="mood-popover">
+              <div class="popover-date">{{ popoverDate }}</div>
+              <div class="popover-mood">
+                <span class="mood-label">{{ popoverMood.label }}</span>
+                <span class="mood-emoji">{{ popoverMood.emoji }}</span>
+              </div>
+              <div class="popover-signature" v-if="popoverMood.signature">{{ popoverMood.signature }}</div>
+            </div>
+          </template>
+        </el-popover>
+      </div>
     </div>
   </div>
 </template>
@@ -112,9 +87,21 @@ const selectedDate = ref(new Date().toISOString().split('T')[0])
 const isSaving = ref(false)
 const isLoading = ref(false)
 
+// 情绪表情选项
+const emojis = [
+  { icon: '😊', value: 'happy' },
+  { icon: '😐', value: 'calm' },
+  { icon: '😰', value: 'anxious' },
+  { icon: '😔', value: 'depressed' },
+  { icon: '😠', value: 'angry' },
+  { icon: '😨', value: 'fearful' },
+  { icon: '😫', value: 'stressed' }
+]
+
 // 情绪记录表单
 const moodForm = reactive({
   mood_label: '',
+  emoji: '',
   signature_text: '',
   four_dim_intensity: 5,
   four_dim_hedonic: '中性',
@@ -122,11 +109,61 @@ const moodForm = reactive({
   four_dim_complexity: '中等'
 })
 
+// 浮窗相关数据
+const popoverVisible = ref(false)
+const popoverDate = ref('')
+const popoverMood = ref({ label: '', emoji: '', signature: '' })
+
+// 格式化当前日期
+const formatCurrentDate = () => {
+  const date = new Date()
+  const day = date.getDate()
+  const month = date.getMonth() + 1
+  return `${day}/${month}`
+}
+
 // 处理日期点击
 const handleDateClick = (date) => {
   selectedDate.value = date
   // 加载该日期的情绪记录
   loadMoodEntry(date)
+  
+  // 显示浮窗
+  showMoodPopover(date)
+}
+
+// 显示情绪浮窗
+const showMoodPopover = (date) => {
+  // 从日历数据中查找该日期的情绪记录
+  const entry = calendarData.value.days.find(item => item.date === date)
+  if (entry) {
+    popoverDate.value = date
+    popoverMood.value = {
+      label: entry.mood_label || '无',
+      emoji: getEmojiByMood(entry.mood_label) || '😐',
+      signature: entry.signature || ''
+    }
+    popoverVisible.value = true
+    
+    // 3秒后自动关闭浮窗
+    setTimeout(() => {
+      popoverVisible.value = false
+    }, 3000)
+  }
+}
+
+// 根据情绪标签获取对应的表情
+const getEmojiByMood = (mood) => {
+  const moodEmojiMap = {
+    '开心': '😊',
+    '平静': '😐',
+    '焦虑': '😰',
+    '抑郁': '😔',
+    '愤怒': '😠',
+    '恐惧': '😨',
+    '压力': '😫'
+  }
+  return moodEmojiMap[mood] || '😐'
 }
 
 // 加载情绪记录
@@ -143,11 +180,13 @@ const loadMoodEntry = async (date) => {
     const entry = calendarData.value.days.find(item => item.date === date)
     if (entry) {
       moodForm.mood_label = entry.mood_label
+      moodForm.emoji = entry.emoji || getEmojiByMood(entry.mood_label)
       moodForm.signature_text = entry.signature
       // 这里可以添加其他字段的赋值
     } else {
       // 重置表单
       moodForm.mood_label = ''
+      moodForm.emoji = ''
       moodForm.signature_text = ''
       moodForm.four_dim_intensity = 5
       moodForm.four_dim_hedonic = '中性'
@@ -178,6 +217,7 @@ const saveMoodEntry = async () => {
       user_id: user.id,
       date: selectedDate.value,
       mood_label: moodForm.mood_label,
+      emoji: moodForm.emoji || getEmojiByMood(moodForm.mood_label),
       signature_text: moodForm.signature_text,
       four_dim: {
         intensity: moodForm.four_dim_intensity,
@@ -258,49 +298,67 @@ onMounted(async () => {
 <style scoped>
 .mood-diary {
   padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .page-title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
   color: #2c3e50;
-  text-align: center;
 }
 
-.calendar-section,
-.form-section,
-.trend-section {
+.diary-content {
+  flex: 1;
+  display: flex;
+  gap: 15px;
+  overflow: hidden;
+}
+
+.date-card {
+  flex: 1;
   background: white;
   border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
+  padding: 15px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.calendar-section h3,
-.form-section h3,
-.trend-section h3 {
+.card-title {
   font-size: 18px;
   font-weight: 500;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   color: #34495e;
   border-bottom: 2px solid #42b983;
   padding-bottom: 10px;
 }
 
+.current-date {
+  font-size: 24px;
+  font-weight: 600;
+  color: #42b983;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
 .mood-form {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  overflow: hidden;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  overflow: hidden;
 }
 
 .form-group label {
@@ -309,22 +367,91 @@ onMounted(async () => {
   color: #555;
 }
 
-.form-row {
+.emoji-selector {
   display: flex;
-  gap: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.form-group.half {
-  flex: 1;
+.emoji-item {
+  font-size: 24px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
 }
 
-.w-full {
-  width: 100%;
+.emoji-item:hover {
+  background: #f0f0f0;
+  transform: scale(1.1);
+}
+
+.emoji-item.active {
+  background: #e6f7ff;
+  border: 2px solid #1890ff;
+}
+
+.calendar-side {
+  width: 300px;
+  background: white;
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 300px;
+}
+
+.calendar-title {
+  font-size: 18px;
+  font-weight: 500;
+  margin-bottom: 20px;
+  color: #34495e;
+  border-bottom: 2px solid #42b983;
+  padding-bottom: 10px;
+}
+
+.mood-popover {
+  padding: 12px;
+}
+
+.popover-date {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.popover-mood {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mood-label {
+  font-size: 14px;
+  color: #666;
+}
+
+.mood-emoji {
+  font-size: 20px;
+}
+
+.popover-signature {
+  font-size: 12px;
+  color: #999;
+  line-height: 1.4;
 }
 
 @media (max-width: 768px) {
-  .form-row {
+  .diary-content {
     flex-direction: column;
+  }
+  
+  .calendar-side {
+    width: 100%;
   }
   
   .mood-diary {

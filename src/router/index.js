@@ -32,6 +32,12 @@ const routes = [
     component: () => import('@/components/Questionnaire/MentalQuestionnaire.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/mood',
+    name: 'mood',
+    component: HomePage,
+    meta: { requiresAuth: true }
+  },
      {
     path: '/RecordReport',
     name: 'RecordReport',

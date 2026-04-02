@@ -2,8 +2,8 @@
 
 ## 1. 基础信息
 
-- **服务地址**: `http://localhost:8001`
-- **API文档**: `http://localhost:8001/docs` (Swagger UI)
+- **服务地址**: `http://localhost:8000`
+- **API文档**: `http://localhost:8000/docs` (Swagger UI)
 - **项目结构**: 模块化设计，包含记录师、分析师和调理师三个主要模块
 
 ## 2. 记录师模块 (Recorder)
@@ -216,7 +216,7 @@
 
 ```javascript
 // 开始新会话
-const response = await fetch('http://localhost:8001/recorder/converse', {
+const response = await fetch('http://localhost:8000/recorder/converse', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
@@ -235,7 +235,7 @@ console.log('记录师回应:', data.llm_response);
 
 ```javascript
 // 请求分析
-const response = await fetch('http://localhost:8001/analyst/analyze', {
+const response = await fetch('http://localhost:8000/analyst/analyze', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
@@ -256,7 +256,7 @@ console.log('报告ID:', data.report_id);
 
 ```javascript
 // 生成疏导方案
-const response = await fetch('http://localhost:8001/therapist/generate-plan', {
+const response = await fetch('http://localhost:8000/therapist/generate-plan', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'

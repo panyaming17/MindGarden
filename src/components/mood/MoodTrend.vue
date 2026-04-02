@@ -1,29 +1,33 @@
 <template>
   <div class="mood-trend">
+    <h2 class="trend-title">情绪趋势</h2>
     <div class="trend-controls">
       <el-select v-model="timeRange" @change="updateTrendData" placeholder="选择时间范围">
-        <el-option label="近7天" value="7" />
-        <el-option label="近30天" value="30" />
-        <el-option label="近90天" value="90" />
+        <el-option label="年" value="365" />
+        <el-option label="月" value="30" />
+        <el-option label="周" value="7" />
       </el-select>
     </div>
     
-    <div class="chart-container">
-      <canvas ref="trendChart"></canvas>
-    </div>
-    
-    <div class="trend-stats">
-      <div class="stat-item">
-        <div class="stat-label">平均情绪强度</div>
-        <div class="stat-value">{{ averageIntensity.toFixed(1) }}</div>
+    <div class="trend-content">
+      <div class="chart-container">
+        <canvas ref="trendChart"></canvas>
       </div>
-      <div class="stat-item">
-        <div class="stat-label">最常见情绪</div>
-        <div class="stat-value">{{ mostCommonMood }}</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-label">情绪稳定性</div>
-        <div class="stat-value">{{ stabilityLevel }}</div>
+      
+      <div class="trend-summary">
+        <div class="summary-title">情绪总结</div>
+        <div class="summary-item">
+          <div class="summary-label">平均情绪强度</div>
+          <div class="summary-value">{{ averageIntensity.toFixed(1) }}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">最常见情绪</div>
+          <div class="summary-value">{{ mostCommonMood }}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">情绪稳定性</div>
+          <div class="summary-value">{{ stabilityLevel }}</div>
+        </div>
       </div>
     </div>
   </div>
@@ -87,15 +91,19 @@ const createChart = () => {
       chartInstance.value.destroy()
     }
     
+    // 中医七情情绪
+    const sevenEmotions = ['喜', '怒', '忧', '思', '悲', '恐', '惊']
+    const emotionEmojis = ['😊', '😠', '😟', '😔', '😢', '😨', '😰']
+    
     // 创建新图表
     chartInstance.value = new Chart(trendChart.value, {
       type: 'line',
       data: {
-        labels: props.trendData.dates,
+        labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
         datasets: [
           {
             label: '情绪强度',
-            data: props.trendData.intensities,
+            data: props.trendData.intensities.length > 0 ? props.trendData.intensities : [0, 0, 0, 0, 0, 0, 0],
             borderColor: '#3498db',
             backgroundColor: 'rgba(52, 152, 219, 0.1)',
             borderWidth: 2,
@@ -110,16 +118,27 @@ const createChart = () => {
         scales: {
           y: {
             beginAtZero: true,
-            max: 10,
+            min: 0,
+            max: 7,
+            stepSize: 1,
             title: {
               display: true,
-              text: '情绪强度'
+              text: '中医七情情绪'
+            },
+            ticks: {
+              callback: function(value) {
+                const index = Math.round(value) - 1
+                if (index >= 0 && index < sevenEmotions.length) {
+                  return `${emotionEmojis[index]} ${sevenEmotions[index]}`
+                }
+                return ''
+              }
             }
           },
           x: {
             title: {
               display: true,
-              text: '日期'
+              text: '星期'
             }
           }
         },
@@ -131,7 +150,7 @@ const createChart = () => {
             callbacks: {
               afterLabel: function(context) {
                 const index = context.dataIndex
-                return `情绪: ${props.trendData.labels[index]}`
+                return `情绪: ${props.trendData.labels[index] || '无'}`
               }
             }
           }
@@ -165,6 +184,16 @@ onMounted(() => {
 <style scoped>
 .mood-trend {
   width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.trend-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 16px;
 }
 
 .trend-controls {
@@ -173,39 +202,60 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
+.trend-content {
+  flex: 1;
+  display: flex;
+  gap: 30px;
+}
+
 .chart-container {
-  height: 300px;
-  margin-bottom: 20px;
+  flex: 1;
+  height: 80%;
+  min-height: 200px;
+  overflow: hidden;
 }
 
-.trend-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-}
-
-.stat-item {
+.trend-summary {
+  width: 500px;
   background: #f8f9fa;
-  padding: 16px;
+  padding: 20px;
   border-radius: 8px;
-  text-align: center;
+  display: flex;
+  flex-direction: column;
 }
 
-.stat-label {
+.summary-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 8px;
+}
+
+.summary-item {
+  margin-bottom: 16px;
+}
+
+.summary-label {
   font-size: 14px;
   color: #666;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
-.stat-value {
-  font-size: 20px;
+.summary-value {
+  font-size: 18px;
   font-weight: 600;
   color: #333;
 }
 
 @media (max-width: 768px) {
-  .trend-stats {
-    grid-template-columns: 1fr;
+  .trend-content {
+    flex-direction: column;
+  }
+  
+  .trend-summary {
+    width: 100%;
   }
   
   .chart-container {

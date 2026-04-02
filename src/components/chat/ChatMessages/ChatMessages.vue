@@ -5,13 +5,16 @@
       :key="index"
       :message="message"
       :current-role="currentRole"
+      @copy="handleCopy"
+      @regenerate="handleRegenerate"
+      @feedback="handleFeedback"
     />
     <TypingIndicator v-if="isTyping" />
   </div>
 </template>
 
 <script setup>
-import { ref, defineProps } from 'vue'
+import { ref, defineProps, defineEmits } from 'vue'
 import MessageBubble from './MessageBubble.vue'
 import TypingIndicator from './TypingIndicator.vue'
 
@@ -23,12 +26,33 @@ const props = defineProps({
   currentRole: {
     type: String,
     default: '小园'
+  },
+  isLoading: {
+    type: Boolean,
+    default: false
   }
 })
+
+const emit = defineEmits(['copy', 'regenerate', 'feedback'])
 
 const { currentRole } = props
 
 const isTyping = ref(false)
+
+// 处理复制事件
+const handleCopy = (message) => {
+  emit('copy', message)
+}
+
+// 处理重新生成事件
+const handleRegenerate = (message) => {
+  emit('regenerate', message)
+}
+
+// 处理反馈事件
+const handleFeedback = (data) => {
+  emit('feedback', data)
+}
 </script>
 
 <style scoped>

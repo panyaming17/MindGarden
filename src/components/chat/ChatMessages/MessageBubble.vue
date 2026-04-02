@@ -29,16 +29,28 @@
           <!-- 操作按钮：复制、重新生成、点赞、点踩 -->
           <div class="message-actions">
             <el-tooltip content="复制" placement="bottom" effect="dark" :offset="5">
-              <el-icon class="action-icon" size="16"><CopyDocument /></el-icon>
+              <el-icon class="action-icon" size="16" @click="copyMessage"><CopyDocument /></el-icon>
             </el-tooltip>
             <el-tooltip content="重新生成" placement="bottom" effect="dark" :offset="5">
-              <el-icon class="action-icon" size="16"><RefreshRight /></el-icon>
+              <el-icon class="action-icon" size="16" @click="regenerateMessage"><RefreshRight /></el-icon>
             </el-tooltip>
             <el-tooltip content="点赞" placement="bottom" effect="dark" :offset="5">
-              <img src="/src/assets/icons/ThumbsUp.svg" class="action-icon" alt="点赞" />
+              <img 
+                src="/src/assets/icons/ThumbsUp.svg" 
+                class="action-icon" 
+                :class="{ 'active': feedbackType === 'like' }"
+                alt="点赞" 
+                @click="handleFeedback('like')"
+              />
             </el-tooltip>
             <el-tooltip content="点踩" placement="bottom" effect="dark" :offset="5">
-              <img src="/src/assets/icons/ThumbsDown.svg" class="action-icon" alt="点踩" />
+              <img 
+                src="/src/assets/icons/ThumbsDown.svg" 
+                class="action-icon" 
+                :class="{ 'active': feedbackType === 'dislike' }"
+                alt="点踩" 
+                @click="handleFeedback('dislike')"
+              />
             </el-tooltip>
           </div>
           
@@ -83,8 +95,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { CopyDocument, RefreshRight } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps({
   message: {
@@ -96,6 +109,39 @@ const props = defineProps({
     default: '小园'
   }
 })
+
+const emit = defineEmits(['copy', 'regenerate', 'feedback'])
+
+// 反馈类型（like/dislike）
+const feedbackType = ref(null)
+
+// 复制消息
+const copyMessage = async () => {
+  try {
+    await navigator.clipboard.writeText(props.message.content)
+    ElMessage.success('消息已复制到剪贴板')
+    emit('copy', props.message)
+  } catch (err) {
+    console.error('复制失败:', err)
+    ElMessage.error('复制失败，请手动复制')
+  }
+}
+
+// 重新生成消息
+const regenerateMessage = () => {
+  emit('regenerate', props.message)
+}
+
+// 处理反馈（点赞/点踩）
+const handleFeedback = (type) => {
+  if (feedbackType.value === type) {
+    // 取消反馈
+    feedbackType.value = null
+  } else {
+    feedbackType.value = type
+  }
+  emit('feedback', { message: props.message, type: feedbackType.value })
+}
 
 // 从localStorage获取用户信息
 const getUserInfo = () => {
@@ -367,6 +413,15 @@ const formatTime = (timestamp) => {
 .action-icon:hover {
   color: rgba(102, 126, 234, 0.8);
   transform: scale(1.1);
+}
+
+.action-icon.active {
+  color: #4CAF50;
+  transform: scale(1.1);
+}
+
+.action-icon.active img {
+  filter: brightness(1.2);
 }
 
 /* 图片按钮样式 */

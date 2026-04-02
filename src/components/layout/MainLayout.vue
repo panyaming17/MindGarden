@@ -7,7 +7,7 @@
     />
     <MainContent 
       :conversationData="selectedConversation"
-      :activeFunction="activeFunction === 'history' ? 'home' : activeFunction"
+      :activeFunction="activeFunction"
     />
   </div>
 </template>
@@ -42,8 +42,10 @@ const handleLoadConversation = (conversation) => {
 const handleSelectFunction = (functionName) => {
   // 处理功能选项选择事件，更新激活的功能
   activeFunction.value = functionName
-  // 清空选中的对话，因为切换功能时可能需要显示不同内容
-  selectedConversation.value = null
+  // 只有当切换到非历史记录功能时才清空选中的对话
+  if (functionName !== 'history') {
+    selectedConversation.value = null
+  }
 }
 </script>
 
@@ -52,17 +54,21 @@ const handleSelectFunction = (functionName) => {
   display: flex;
   height: 100vh;
   overflow: hidden;
-
+  position: relative;
 }
 
 /* 确保侧边栏和主内容区域有正确的宽度分配 */
 .sidebar {
-  flex: 0 0 20%;
-  min-width: 180px;
+  flex: 0 0 280px;
+  min-width: 280px;
+  max-width: 320px;
+  height: 100%;
 }
 
 .main-content {
-  flex: 0 0 80%;
+  flex: 1;
+  height: 100%;
+  min-width: 0;
 }
 
 /* 响应式调整 */
@@ -74,6 +80,7 @@ const handleSelectFunction = (functionName) => {
   .sidebar,
   .main-content {
     flex: 0 0 100%;
+    height: 50%;
   }
 }
 </style>
