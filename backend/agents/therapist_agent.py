@@ -1,3 +1,6 @@
+import json
+import asyncio
+from datetime import datetime
 from typing import Dict, Any, Optional, List
 from backend.agents.base_agent import BaseAgent
 from backend.repositories.record_repository_new import RecordRepository
@@ -34,7 +37,7 @@ class TherapistAgent(BaseAgent):
 - tcm_first_then_cbt：先用中医方法平复，再进行CBT探讨
 - parallel：两者交替或同时提及
 
-请用自然、温暖的语言回复，像和朋友谈心一样，可以适当用些语气词，如，嗯、哦等。
+请用自然、温暖的语言回复，像和朋友谈心一样，可以适当用些语气词。
 """
 
         self.user_prompt_template = """
@@ -91,30 +94,22 @@ class TherapistAgent(BaseAgent):
             raise Exception("LLM服务未初始化")
 
         # 获取最近对话历史
-        print(f"DEBUG: 调理师智能体 - 获取用户最近的对话历史，用户ID: {user_id}, 会话ID: {session_id}")
         recent_history = self._get_recent_history(user_id, limit=3, session_id=session_id)
-        print(f"DEBUG: 调理师智能体 - 最近对话历史: {recent_history}")
 
         # 如果没有提供建议，则获取最新建议
-        print("DEBUG: 调理师智能体 - 获取分析师建议")
         if advice is None:
             advice = self.repository.get_latest_advice(user_id)
             if advice:
                 # 提取advice_json字段的内容
                 advice = advice.get("advice_json", advice)
-                print(f"DEBUG: 调理师智能体 - 获取到最新建议: {advice}")
             else:
                 # 若无建议，使用默认建议（空字典，提示词会使用默认值）
                 advice = {}
-                print("DEBUG: 调理师智能体 - 未获取到建议，使用默认建议")
 
         # 构建提示词
-        print("DEBUG: 调理师智能体 - 构建提示词")
         prompt = self._build_prompt(user_input, recent_history, advice)
-        print(f"DEBUG: 调理师智能体 - 提示词长度: {len(prompt)}")
 
         # 调用LLM
-        print("DEBUG: 调理师智能体 - 调用LLM服务生成回复")
         reply = await self._get_llm_response(
             messages=[
                 {"role": "system", "content": self.system_prompt},
@@ -124,10 +119,8 @@ class TherapistAgent(BaseAgent):
             max_tokens=500
         )
         reply = reply.strip()
-        print(f"DEBUG: 调理师智能体 - LLM生成回复: {reply}")
 
         # 存储回复
-        print("DEBUG: 调理师智能体 - 存储助手回复到数据库")
         self.repository.save_dialogue(
             user_id=user_id,
             role="assistant",
@@ -136,7 +129,6 @@ class TherapistAgent(BaseAgent):
             is_valuable=False,
             session_id=session_id
         )
-        print("DEBUG: 调理师智能体 - 回复存储成功")
 
         return reply
 
@@ -168,3 +160,388 @@ class TherapistAgent(BaseAgent):
             return result['choices'][0]['message']['content']
         else:
             raise ValueError("LLM 响应格式异常")
+    
+    async def generate_treatment_report(self, user_id: str, session_id: str,
+                                        analysis_report: dict) -> dict:
+        """生成调理报告
+
+        基于分析师生成的分析报告（CBT分析和TCM分析），生成针对性的调理建议。
+        优先级：1.使用本地模板生成基础调理报告 2.添加重试机制调用LLM
+
+        Args:
+            user_id: 用户ID
+            session_id: 会话ID
+            analysis_report: 分析报告，包含cognitive_analysis和tcm_analysis
+        """
+        print("DEBUG: 开始生成调理报告...")
+
+        # 提取分析报告中的关键信息
+        cognitive_analysis = analysis_report.get("cognitive_analysis", {})
+        tcm_analysis = analysis_report.get("tcm_analysis", {})
+
+        thinking_traps = cognitive_analysis.get("thinking_traps", [])
+        core_beliefs = cognitive_analysis.get("core_beliefs", [])
+        dominant_emotion = tcm_analysis.get("dominant_emotion", "")
+        related_organs = tcm_analysis.get("related_organs", [])
+        qi_dynamics = tcm_analysis.get("qi_dynamics", "")
+
+        print(f"DEBUG: 思维陷阱: {thinking_traps}")
+        print(f"DEBUG: 主导情志: {dominant_emotion}")
+        print(f"DEBUG: 相关脏腑: {related_organs}")
+
+        # 优先级1: 使用本地模板生成基础调理报告
+        base_report = self._generate_base_treatment_report(
+            thinking_traps=thinking_traps,
+            core_beliefs=core_beliefs,
+            dominant_emotion=dominant_emotion,
+            related_organs=related_organs,
+            qi_dynamics=qi_dynamics
+        )
+        print("DEBUG: 已生成基础调理报告")
+
+        # 优先级2: 如果LLM服务可用，尝试用LLM优化报告（带重试机制）
+        if self.llm_service:
+            llm_report = await self._generate_treatment_report_with_retry(
+                analysis_report=analysis_report,
+                base_report=base_report,
+                max_retries=3
+            )
+            if llm_report:
+                print("DEBUG: 使用LLM优化后的调理报告")
+                return llm_report
+            else:
+                print("DEBUG: LLM优化失败，使用基础调理报告")
+                return base_report
+        else:
+            print("DEBUG: LLM服务未初始化，使用基础调理报告")
+            return base_report
+
+    def _generate_base_treatment_report(self, thinking_traps: List[str],
+                                        core_beliefs: List[str],
+                                        dominant_emotion: str,
+                                        related_organs: List[str],
+                                        qi_dynamics: str) -> dict:
+        """使用本地模板生成基础调理报告
+
+        根据分析结果中的关键信息，匹配本地模板生成基础调理建议。
+        """
+        # 根据思维陷阱匹配CBT作业
+        cbt_homework = self._match_cbt_homework(thinking_traps, core_beliefs)
+
+        # 根据主导情志和脏腑匹配中医实践
+        tcm_practices = self._match_tcm_practices(dominant_emotion, related_organs, qi_dynamics)
+
+        # 生成融合策略
+        fusion_strategies = [{
+            "time": datetime.utcnow().isoformat(),
+            "fusion_mode": "cbt_tcm_integrated",
+            "key_points": f"针对{dominant_emotion}情志，结合CBT认知调整和{','.join(related_organs)}脏腑调理"
+        }]
+
+        # 生成报告摘要
+        summary = f"针对{dominant_emotion}情志和{','.join(thinking_traps)}等思维陷阱的调理方案"
+
+        # 生成总体建议
+        recommendations = [
+            f"关注{dominant_emotion}情志对身体的影响",
+            "保持规律作息，避免过度劳累",
+            "如症状持续，建议寻求专业帮助"
+        ]
+
+        return {
+            "summary": summary,
+            "fusion_strategies": fusion_strategies,
+            "cbt_homework": cbt_homework,
+            "tcm_practices": tcm_practices,
+            "recommendations": recommendations,
+            "next_steps": {
+                "suggestion": "持续记录情绪和身体状况的变化",
+                "follow_up": "一周后评估调理效果"
+            }
+        }
+
+    def _match_cbt_homework(self, thinking_traps: List[str], core_beliefs: List[str]) -> List[dict]:
+        """根据思维陷阱匹配CBT作业模板"""
+        homework_templates = {
+            "灾难化思维": {
+                "name": "灾难化思维挑战记录",
+                "description": "当出现'一定会失败'等想法时，记录下：1.触发事件 2.当时的想法 3.写下3个反驳证据",
+                "frequency": "每天",
+                "duration": "两周"
+            },
+            "全或无思维": {
+                "name": "灰度思考练习",
+                "description": "当出现'完全不行'等绝对化想法时，尝试用0-100%的尺度评估情况，寻找中间状态",
+                "frequency": "每天",
+                "duration": "持续进行"
+            },
+            "心理过滤": {
+                "name": "积极事件记录",
+                "description": "每天记录3件做得好的事情或积极的经历，无论多小都要记录",
+                "frequency": "每天",
+                "duration": "三周"
+            },
+            "情绪化推理": {
+                "name": "情绪与事实区分练习",
+                "description": "当感到'我觉得糟糕，所以情况一定很糟'时，分别列出情绪感受和客观事实",
+                "frequency": "每天",
+                "duration": "两周"
+            },
+            "应该陈述": {
+                "name": "灵活期望练习",
+                "description": "将'我应该...'改为'我可以...'或'我希望...'，记录使用新表达后的感受变化",
+                "frequency": "每天",
+                "duration": "持续进行"
+            }
+        }
+
+        homework = []
+        for trap in thinking_traps:
+            if trap in homework_templates:
+                homework.append(homework_templates[trap])
+
+        # 如果没有匹配到，添加默认作业
+        if not homework:
+            homework.append({
+                "name": "思维记录表",
+                "description": "记录每天出现的自动化思维，分析其类型（灾难化/全或无/过滤等），并尝试寻找反证",
+                "frequency": "每天",
+                "duration": "持续进行"
+            })
+
+        return homework
+
+    def _match_tcm_practices(self, dominant_emotion: str, related_organs: List[str],
+                             qi_dynamics: str) -> List[dict]:
+        """根据情志和脏腑匹配中医实践模板"""
+        # 情志-脏腑-调理方法映射
+        emotion_practices = {
+            "忧": {
+                "organs": ["肺"],
+                "practices": [
+                    {
+                        "name": "太渊穴按摩",
+                        "description": "按揉手腕横纹桡侧凹陷处的太渊穴，每次3-5分钟，补肺气",
+                        "purpose": "补益肺气，缓解忧思",
+                        "frequency": "每日2次"
+                    },
+                    {
+                        "name": "百合银耳羹",
+                        "description": "百合30g、银耳10g、冰糖适量，炖煮食用",
+                        "purpose": "润肺养阴，宁心安神",
+                        "frequency": "每周3-4次"
+                    }
+                ]
+            },
+            "思": {
+                "organs": ["脾"],
+                "practices": [
+                    {
+                        "name": "足三里穴按摩",
+                        "description": "按揉膝盖下3寸、胫骨外侧1横指处的足三里穴，每次5分钟",
+                        "purpose": "健脾益气，调和脾胃",
+                        "frequency": "每日2次"
+                    },
+                    {
+                        "name": "山药薏米粥",
+                        "description": "山药50g、薏米30g、粳米100g煮粥",
+                        "purpose": "健脾祛湿，益气养血",
+                        "frequency": "每周4-5次"
+                    }
+                ]
+            },
+            "怒": {
+                "organs": ["肝"],
+                "practices": [
+                    {
+                        "name": "太冲穴按摩",
+                        "description": "按揉足背第1、2跖骨结合部前方凹陷处的太冲穴，每次3-5分钟",
+                        "purpose": "疏肝理气，平肝潜阳",
+                        "frequency": "每日2次，生气时加按"
+                    },
+                    {
+                        "name": "玫瑰花茶",
+                        "description": "玫瑰花5-8朵，沸水冲泡代茶饮",
+                        "purpose": "疏肝解郁，理气和中",
+                        "frequency": "每日1-2次"
+                    }
+                ]
+            },
+            "恐": {
+                "organs": ["肾"],
+                "practices": [
+                    {
+                        "name": "涌泉穴按摩",
+                        "description": "按揉足底前1/3凹陷处的涌泉穴，每次5-10分钟",
+                        "purpose": "滋补肾气，宁心安神",
+                        "frequency": "每晚睡前"
+                    },
+                    {
+                        "name": "黑芝麻核桃粥",
+                        "description": "黑芝麻20g、核桃仁15g、粳米100g煮粥",
+                        "purpose": "补肾益精，养血安神",
+                        "frequency": "每周3-4次"
+                    }
+                ]
+            }
+        }
+
+        practices = []
+
+        # 根据主导情志匹配
+        if dominant_emotion in emotion_practices:
+            practices.extend(emotion_practices[dominant_emotion]["practices"])
+
+        # 根据相关脏腑补充
+        organ_practices = {
+            "心": {
+                "name": "内关穴按摩",
+                "description": "按揉腕横纹上2寸、两筋之间的内关穴，每次3-5分钟",
+                "purpose": "宁心安神，理气止痛",
+                "frequency": "每日2次，焦虑时加按"
+            },
+            "肝": {
+                "name": "推胁肋",
+                "description": "双手掌根从腋下沿胁肋向下推至腰部，每次10-15次",
+                "purpose": "疏肝理气，解郁散结",
+                "frequency": "每日1次"
+            }
+        }
+
+        for organ in related_organs:
+            if organ in organ_practices and organ not in [p.get("purpose", "") for p in practices]:
+                practices.append(organ_practices[organ])
+
+        # 如果气机不畅，添加呼吸练习
+        if "郁" in qi_dynamics or "不畅" in qi_dynamics:
+            practices.append({
+                "name": "腹式呼吸练习",
+                "description": "吸气时腹部鼓起（4秒）-屏息（2秒）-呼气时腹部收缩（6秒），重复10次",
+                "purpose": "调畅气机，宁心安神",
+                "frequency": "每日2次，焦虑时随时练习"
+            })
+
+        return practices
+
+    async def _generate_treatment_report_with_retry(self, analysis_report: dict,
+                                                    base_report: dict,
+                                                    max_retries: int = 3) -> Optional[dict]:
+        """带重试机制的LLM调理报告生成
+
+        尝试多次调用LLM优化基础报告，如果都失败则返回None。
+        """
+        cognitive_analysis = analysis_report.get("cognitive_analysis", {})
+        tcm_analysis = analysis_report.get("tcm_analysis", {})
+
+        thinking_traps = cognitive_analysis.get("thinking_traps", [])
+        core_beliefs = cognitive_analysis.get("core_beliefs", [])
+        dominant_emotion = tcm_analysis.get("dominant_emotion", "")
+        related_organs = tcm_analysis.get("related_organs", [])
+        qi_dynamics = tcm_analysis.get("qi_dynamics", "")
+
+        # 构建提示词
+        prompt = f"""基于以下分析信息，优化调理报告。
+
+核心问题：
+- 主要思维陷阱：{', '.join(thinking_traps)}
+- 核心信念：{', '.join(core_beliefs)}
+- 主导情志：{dominant_emotion}
+- 相关脏腑：{', '.join(related_organs)}
+- 气机问题：{qi_dynamics}
+
+基础调理报告：
+{json.dumps(base_report, ensure_ascii=False, indent=2)}
+
+请优化此报告，使建议更具体、更可操作。保持相同的JSON结构。
+
+必须返回有效的JSON格式，包含以下字段：
+- summary: 报告摘要
+- fusion_strategies: 融合策略列表
+- cbt_homework: CBT作业列表
+- tcm_practices: 中医实践列表
+- recommendations: 总体建议列表
+- next_steps: 后续步骤
+"""
+
+        for attempt in range(max_retries):
+            try:
+                print(f"DEBUG: 第{attempt + 1}次尝试调用LLM...")
+
+                response = await self.llm_service.chat_completion(
+                    messages=[
+                        {"role": "system", "content": "你是一位专业的心理咨询调理师。请优化调理报告，使其更具体、更可操作。必须返回有效的JSON格式。"},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    max_tokens=2000
+                )
+
+                # 解析JSON
+                content = response["choices"][0]["message"]["content"]
+
+                # 提取JSON
+                if "```json" in content:
+                    start = content.find("```json") + 7
+                    end = content.find("```", start)
+                    content = content[start:end].strip()
+                elif "```" in content:
+                    start = content.find("```") + 3
+                    end = content.find("```", start)
+                    content = content[start:end].strip()
+
+                report = json.loads(content)
+
+                # 验证必要字段
+                required_fields = ["summary", "fusion_strategies", "cbt_homework",
+                                   "tcm_practices", "recommendations", "next_steps"]
+                if all(field in report for field in required_fields):
+                    print(f"DEBUG: 第{attempt + 1}次尝试成功")
+                    return report
+                else:
+                    print(f"DEBUG: 第{attempt + 1}次尝试返回的JSON缺少必要字段")
+
+            except Exception as e:
+                print(f"DEBUG: 第{attempt + 1}次尝试失败: {e}")
+
+            # 等待后重试
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # 指数退避：1s, 2s, 4s
+                print(f"DEBUG: 等待{wait_time}秒后重试...")
+                await asyncio.sleep(wait_time)
+
+        print(f"DEBUG: {max_retries}次尝试均失败")
+        return None
+
+    def _get_default_treatment_report(self) -> dict:
+        """获取默认调理报告"""
+        return {
+            "summary": "基于分析报告生成的调理报告",
+            "fusion_strategies": [
+                {
+                    "time": datetime.utcnow().isoformat(),
+                    "fusion_mode": "cbt_tcm_integrated",
+                    "key_points": "结合CBT认知调整和中医情志调理"
+                }
+            ],
+            "cbt_homework": [
+                {
+                    "name": "情绪日记",
+                    "description": "每天记录情绪变化和触发事件",
+                    "frequency": "每天",
+                    "duration": "持续进行"
+                }
+            ],
+            "tcm_practices": [
+                {
+                    "name": "呼吸调息",
+                    "description": "每日进行深呼吸练习，调节气机",
+                    "purpose": "宁心安神",
+                    "frequency": "每日2次"
+                }
+            ],
+            "recommendations": ["建议持续关注情绪变化", "必要时寻求专业帮助"],
+            "next_steps": {
+                "suggestion": "继续观察情绪变化",
+                "follow_up": "定期评估"
+            }
+        }

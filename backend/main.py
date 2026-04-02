@@ -12,6 +12,7 @@ from backend.api.v1.mood_endpoints import router as mood_router
 from backend.api.v1.questionnaire_endpoints import router as questionnaire_router
 from backend.api.v1.report_endpoints import router as report_router
 from backend.api.v1.alert_endpoints import router as alert_router
+from backend.api.v1.emotion_endpoints import router as emotion_router
 
 # 创建FastAPI应用实例
 app = FastAPI(
@@ -37,6 +38,7 @@ app.include_router(mood_router)
 app.include_router(questionnaire_router)
 app.include_router(report_router)
 app.include_router(alert_router)
+app.include_router(emotion_router)
 
 # 根路径
 @app.get("/")

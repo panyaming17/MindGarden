@@ -202,7 +202,7 @@ class LLMService:
             f"{config['base_url']}/chat/completions",
             headers=config["headers"](),
             json=payload,
-            timeout=aiohttp.ClientTimeout(total=30)
+            timeout=aiohttp.ClientTimeout(total=60)  # 增加到 60 秒，避免复杂请求超时
         ) as response:
             return await self._parse_deepseek_response(response) # 解析DeepSeek响应 
     
@@ -236,7 +236,7 @@ class LLMService:
             url,
             headers={"Content-Type": "application/json"},
             json=payload,
-            timeout=aiohttp.ClientTimeout(total=30) 
+            timeout=aiohttp.ClientTimeout(total=60)  # 增加到 60 秒，避免复杂请求超时
         ) as response:
             return await self._parse_baidu_response(response)
     

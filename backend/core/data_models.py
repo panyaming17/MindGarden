@@ -48,105 +48,42 @@ class DiagnosisReport(BaseModel):
     
     # 综合建议框架
     summary: str
-    recommendations: List[str]
     
-    # 元数据
-    confidence_score: float  # 分析置信度
-    analysis_time: float # 分析耗时(秒)
+    # 优先级
+    priority: str  # "高", "中", "低"
+    
     created_at: datetime
 
-    # 在 RecordRepository 的 get_record_by_id 方法中，调整字段映射：
-async def get_record_by_id(self, record_id: str) -> Optional[StructuredRecord]:
-    # ... 前面的代码不变 ...
-    if db_record:
-        return StructuredRecord(
-            record_id=db_record.id,  # 你的StructuredRecord模型使用record_id字段
-            user_id=db_record.user_id,
-            raw_text=db_record.raw_text or "",
-            situation=db_record.situation or "",
-            automatic_thoughts=db_record.automatic_thoughts or [],
-            emotions=db_record.emotions or [],
-            physical_sensations=db_record.physical_sensations or [],
-            created_at=db_record.created_at
-        )
-    # ... 后面的代码不变 ...
-
-# 对话记录相关数据模型
-class Conversation(BaseModel):
-    """对话记录数据模型"""
+class SuggestionReport(BaseModel):
+    """建议师输出的建议报告"""
     id: str
+    diagnosis_id: str
     user_id: str
-    title: str
-    timestamp: datetime
-    emotion: Optional[str] = None
-    cognition_type: Optional[str] = None
-    current_phase: str = "recorder"
-    active_step: int = 0
-    current_role: str = "记录师"
+    
+    # 调理建议
+    suggestions: List[Dict[str, Any]]
+    
+    # 作业任务
+    homework: Optional[List[Dict[str, Any]]] = None
+    
     created_at: datetime
-    updated_at: datetime
-
-class Message(BaseModel):
-    """消息数据模型"""
-    id: str
-    conversation_id: str
-    type: str  # user 或 assistant
-    role: str
-    content: str
-    timestamp: datetime
-    created_at: datetime
-
-class ConversationCreate(BaseModel):
-    """创建对话记录请求模型"""
-    title: str
-    emotion: Optional[str] = None
-    cognition_type: Optional[str] = None
-    current_phase: str = "recorder"
-    active_step: int = 0
-    current_role: str = "记录师"
-
-class ConversationUpdate(BaseModel):
-    """更新对话记录请求模型"""
-    title: Optional[str] = None
-    emotion: Optional[str] = None
-    cognition_type: Optional[str] = None
-    current_phase: Optional[str] = None
-    active_step: Optional[int] = None
-    current_role: Optional[str] = None
-
-class ConversationListResponse(BaseModel):
-    """对话列表响应模型"""
-    id: str
-    title: str
-    timestamp: datetime
-    emotion: Optional[str] = None
-    cognition_type: Optional[str] = None
-    current_phase: str
-    created_at: datetime
-
-class ConversationDetailResponse(BaseModel):
-    """对话详情响应模型"""
-    conversation: Conversation
-    messages: List[Message]
 
 # 用户相关数据模型
 class User(BaseModel):
-    """用户数据模型"""
+    """用户模型"""
     id: str
     username: str
     email: str
     is_active: bool
-    role: str  # user, admin, super_admin
+    role: str
     created_at: datetime
     updated_at: datetime
 
 class UserCreate(BaseModel):
-    """用户创建请求模型"""
+    """创建用户请求模型"""
     username: str
     email: str
-    code: str
     password: str
-    role: str = "user"  # 用户角色，默认值为user
 
 class UserLogin(BaseModel):
     """用户登录请求模型"""
@@ -154,11 +91,15 @@ class UserLogin(BaseModel):
     password: str
 
 class UserResetPassword(BaseModel):
-    """用户重置密码请求模型"""
-    username: str
+    """重置密码请求模型"""
     email: str
     code: str
     new_password: str
+
+class UserUpdate(BaseModel):
+    """更新用户信息请求模型"""
+    username: Optional[str] = None
+    email: Optional[str] = None
 
 class Token(BaseModel):
     """令牌响应模型"""
@@ -167,16 +108,8 @@ class Token(BaseModel):
     user: User
 
 class TokenVerify(BaseModel):
-    """令牌验证响应模型"""
-    valid: bool
-    user: Optional[User] = None
-
-class UserUpdate(BaseModel):
-    """用户更新请求模型"""
-    email: Optional[str] = None
-    username: Optional[str] = None
-    role: Optional[str] = None
-    is_active: Optional[bool] = None
+    """验证令牌请求模型"""
+    token: str
 
 class SendRegisterCode(BaseModel):
     """发送注册验证码请求模型"""
@@ -184,19 +117,98 @@ class SendRegisterCode(BaseModel):
 
 class SendResetCode(BaseModel):
     """发送重置密码验证码请求模型"""
-    username: str
     email: str
+
+# 对话相关数据模型
+class Dialogue(BaseModel):
+    """对话模型"""
+    id: int
+    user_id: str
+    session_id: str
+    role: str
+    content: str
+    created_at: datetime
+
+class DialogueCreate(BaseModel):
+    """创建对话请求模型"""
+    user_id: str
+    session_id: str
+    role: str
+    content: str
+
+class ChatRequest(BaseModel):
+    """聊天请求模型"""
+    message: str
+    session_id: Optional[str] = None
+
+class ChatResponse(BaseModel):
+    """聊天响应模型"""
+    response: str
+    session_id: str
+
+class ChatMessage(BaseModel):
+    """聊天消息模型"""
+    user_id: str
+    message: str
+    session_id: Optional[str] = None
+
+class ChatMessageResponse(BaseModel):
+    """聊天消息响应模型"""
+    reply: str
+    four_dim: Dict[str, Any]
+    is_valuable: bool
+
+class NewSessionResponse(BaseModel):
+    """新建会话响应模型"""
+    session_id: str
+    message: str
+
+class SessionInfo(BaseModel):
+    """会话信息模型"""
+    session_id: str
+    user_id: str
+    title: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+class SessionList(BaseModel):
+    """会话列表响应模型"""
+    sessions: List[SessionInfo]
+
+class ChatHistoryResponse(BaseModel):
+    """聊天历史响应模型"""
+    dialogues: List[Dialogue]
+
+class ChatSession(BaseModel):
+    """对话会话模型"""
+    session_id: str
+    user_id: str
+    title: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+class ChatSessionCreate(BaseModel):
+    """创建对话会话请求模型"""
+    user_id: str
+    title: Optional[str] = None
+
+class ChatHistory(BaseModel):
+    """对话历史响应模型"""
+    dialogues: List[Dialogue]
+
+class ChatSessionList(BaseModel):
+    """对话会话列表响应模型"""
+    sessions: List[ChatSession]
 
 # 记录报告相关数据模型
 class EmotionItem(BaseModel):
     """情绪项模型"""
-    type: str  # 怒/喜/忧/思/恐
-    intensity: int  # 1-10 强度
-    description: Optional[str] = None  # 用户对情绪的描述
+    type: str  # 情绪类型
+    intensity: int  # 强度
 
 class ConversationLogItem(BaseModel):
-    """对话日志项模型"""
-    role: str  # user 或 assistant
+    """对话记录项模型"""
+    role: str  # 角色：user/assistant
     content: str  # 对话内容
 
 class RecordReport(BaseModel):
@@ -297,154 +309,25 @@ class SuggestionReport(BaseModel):
     user_id: str
     timestamp: datetime
     target_issues: List[str]  # 本次疏导聚焦的问题
-    core_principles: List[str]  # 疏导核心理念
-    daily_suggestions: List[DailySuggestion]  # 每日可执行建议
-    emergency_tips: Optional[List[str]] = None  # 情绪紧急时的应对技巧
-    encouragement: str  # 鼓励性结语
-    plan_summary: str  # 简短总结
+    suggestions: List[DailySuggestion]  # 建议列表
+    homework: Optional[List[Dict[str, Any]]] = None  # 作业任务
+    follow_up_questions: Optional[List[str]] = None  # 后续跟进问题
 
 class SuggestionReportCreate(BaseModel):
     """创建建议报告请求模型"""
     report_id: str
     user_id: str
     target_issues: List[str]
-    core_principles: List[str]
-    daily_suggestions: List[DailySuggestion]
-    emergency_tips: Optional[List[str]] = None
-    encouragement: str
-    plan_summary: str
-
-# 规则库相关数据模型
-class RuleType(str, Enum):
-    CBT = "cbt"
-    TCM = "tcm"
-
-class Rule(BaseModel):
-    """规则库数据模型"""
-    id: int
-    type: str
-    name: str
-    content: Dict[str, Any]
-    version: str
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
-
-class RuleCreate(BaseModel):
-    """创建规则请求模型"""
-    type: str
-    name: str
-    content: Dict[str, Any]
-    version: str
-    is_active: bool = True
-
-class RuleUpdate(BaseModel):
-    """更新规则请求模型"""
-    type: Optional[str] = None
-    name: Optional[str] = None
-    content: Optional[Dict[str, Any]] = None
-    version: Optional[str] = None
-    is_active: Optional[bool] = None
-
-class RuleListResponse(BaseModel):
-    """规则列表响应模型"""
-    total: int
-    page: int
-    per_page: int
-    items: List[Rule]
-
-# 审计日志相关数据模型
-class AuditLog(BaseModel):
-    """审计日志数据模型"""
-    id: int
-    admin_id: str
-    action: str
-    target_type: str
-    target_id: str
-    details: Optional[Dict[str, Any]] = None
-    created_at: datetime
-
-class AuditLogListResponse(BaseModel):
-    """审计日志列表响应模型"""
-    total: int
-    page: int
-    per_page: int
-    items: List[AuditLog]
-
-# 对话相关数据模型
-class ChatMessage(BaseModel):
-    """聊天消息请求模型"""
-    user_id: str
-    session_id: str
-    message: str
-
-class ChatMessageResponse(BaseModel):
-    """聊天消息响应模型"""
-    reply: str
-    four_dim: Dict[str, Any]
-    is_valuable: bool
-
-class NewSessionResponse(BaseModel):
-    """创建新会话响应模型"""
-    session_id: str
-    session_title: str
-
-class SessionInfo(BaseModel):
-    """会话信息模型"""
-    session_id: str
-    title: str
-    last_message: str
-    created_at: datetime
-
-class SessionList(BaseModel):
-    """会话列表响应模型"""
-    sessions: List[SessionInfo]
-
-class Dialogue(BaseModel):
-    """对话记录模型"""
-    id: str
-    user_id: str
-    session_id: str
-    role: str
-    content: str
-    four_dim_intensity: Optional[float] = None
-    four_dim_hedonic: Optional[str] = None
-    four_dim_tension: Optional[str] = None
-    four_dim_complexity: Optional[str] = None
-    is_valuable: bool
-    created_at: datetime
-
-class ChatHistoryResponse(BaseModel):
-    """聊天历史响应模型"""
-    dialogues: List[Dialogue]
-
-# 报告相关数据模型
-class SessionReport(BaseModel):
-    """会话报告模型"""
-    id: int
-    user_id: str
-    session_id: str
-    record_report_json: Dict[str, Any]
-    analysis_report_json: Dict[str, Any]
-    treatment_report_json: Dict[str, Any]
-    created_at: datetime
-
-class SessionReportResponse(BaseModel):
-    """会话报告响应模型"""
-    record_report: Dict[str, Any]
-    analysis_report: Dict[str, Any]
-    treatment_report: Dict[str, Any]
-
-class ReportList(BaseModel):
-    """报告列表响应模型"""
-    reports: List[SessionReport]
+    suggestions: List[DailySuggestion]
+    homework: Optional[List[Dict[str, Any]]] = None
+    follow_up_questions: Optional[List[str]] = None
 
 # 情绪日记相关数据模型
 class MoodEntry(BaseModel):
     """情绪日记模型"""
     id: int
     user_id: str
-    entry_date: date
+    date: date
     mood_label: str
     signature_text: str
     four_dim_intensity: Optional[float] = None
@@ -518,22 +401,208 @@ class QuestionnaireHistory(BaseModel):
     """问卷历史响应模型"""
     results: List[UserQuestionnaireResult]
 
-# 预警相关数据模型
-class Alert(BaseModel):
-    """预警模型"""
-    id: int
+# ==================== 新版问卷自查数据模型 ====================
+
+class QuestionOption(BaseModel):
+    """题目选项"""
+    id: str
+    label: str
+    desc: Optional[str] = None
+    score: int
+
+class Question(BaseModel):
+    """问卷题目"""
+    id: str
     type: str
-    level: str
-    message: str
+    text: str
+    options: List[QuestionOption]
+
+class QuestionnaireTemplate(BaseModel):
+    """问卷模板"""
+    code: str
+    name: str
+    description: Optional[str] = None
+    questions: List[Question]
+
+class QuestionnaireTemplateResponse(BaseModel):
+    """问卷模板响应"""
+    code: str
+    name: str
+    description: Optional[str] = None
+    questions: List[Question]
+
+class QuestionnaireAnswer(BaseModel):
+    """问卷答案"""
+    question_id: str
+    option_id: str
+    score: int
+
+class QuestionnaireSubmitRequest(BaseModel):
+    """提交问卷请求"""
+    template_code: str
+    answers: List[QuestionnaireAnswer]
+
+class QuestionnaireResultData(BaseModel):
+    """问卷结果数据"""
+    record_id: str
+    total_score: int
+    result_level: str
+    result_level_text: str
+    result_analysis: Dict[str, Any]
+    next_due_at: datetime
+
+class QuestionnaireSubmitResponse(BaseModel):
+    """提交问卷响应"""
+    code: int
+    data: QuestionnaireResultData
+
+class QuestionnaireSkipRequest(BaseModel):
+    """跳过问卷请求"""
+    template_code: str
+
+class QuestionnaireSkipResponse(BaseModel):
+    """跳过问卷响应"""
+    code: int
+    data: Dict[str, Any]
+
+class NextDueQuestionnaire(BaseModel):
+    """待测问卷项"""
+    template_code: str
+    template_name: str
+    due_at: datetime
+    days_overdue: int
+
+class NextDueResponse(BaseModel):
+    """待测问卷响应"""
+    code: int
+    data: List[NextDueQuestionnaire]
+
+class QuestionnaireRecordItem(BaseModel):
+    """问卷历史记录项"""
+    id: int
+    total_score: int
+    result_level: str
+    result_level_text: str
     created_at: datetime
 
-class AlertList(BaseModel):
-    """预警列表响应模型"""
-    alerts: List[Alert]
+class QuestionnaireTrendData(BaseModel):
+    """问卷趋势数据"""
+    date: str
+    score: int
 
-class AlertAcknowledge(BaseModel):
-    """确认预警请求模型"""
-    alert_id: int
+class QuestionnaireHistoryData(BaseModel):
+    """问卷历史数据"""
+    template_code: str
+    template_name: str
+    records: List[QuestionnaireRecordItem]
+    trend_data: List[QuestionnaireTrendData]
+
+class QuestionnaireHistoryResponse(BaseModel):
+    """问卷历史响应"""
+    code: int
+    data: QuestionnaireHistoryData
+
+class QuestionnaireReminder(BaseModel):
+    """问卷提醒WebSocket消息"""
+    type: str = "questionnaire_reminder"
+    required_pending: int
+    optional_pending: int
+    overdue_required: List[str]
+    force_remind: bool
+
+# ==================== 预警相关数据模型 ====================
+
+class AlertType(str, Enum):
+    """预警类型"""
+    QUESTIONNAIRE = "questionnaire"
+    EMOTION = "emotion"
+    CONVERSATION = "conversation"
+
+class AlertLevel(str, Enum):
+    """预警等级"""
+    INFO = "info"
+    WARNING = "warning"
+    DANGER = "danger"
+
+class Alert(BaseModel):
+    """预警模型 - 新版（符合API文档规范）"""
+    id: str
+    type: AlertType
+    level: AlertLevel
+    title: str
+    message: str
+    source_data: Optional[Dict[str, Any]] = None
+    is_acknowledged: bool
+    created_at: datetime
+    acknowledged_at: Optional[datetime] = None
+    acknowledged_by: Optional[str] = None
+
+class AlertListRequest(BaseModel):
+    """获取预警列表请求"""
+    user_id: str
+    type: Optional[AlertType] = None
+    level: Optional[AlertLevel] = None
+    status: Optional[str] = None  # acknowledged/unacknowledged
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    page: int = 1
+    page_size: int = 20
+
+class AlertListResponse(BaseModel):
+    """预警列表响应"""
+    code: int = 200
+    message: str = "success"
+    data: Dict[str, Any]
+
+class AlertAcknowledgeRequest(BaseModel):
+    """确认预警请求"""
+    user_id: str
+    notes: Optional[str] = None
+
+class AlertAcknowledgeResponse(BaseModel):
+    """确认预警响应"""
+    code: int = 200
+    message: str = "success"
+    data: Dict[str, Any]
+
+class AlertBatchAcknowledgeRequest(BaseModel):
+    """批量确认预警请求"""
+    alert_ids: List[str]
+    user_id: str
+
+class AlertBatchAcknowledgeResponse(BaseModel):
+    """批量确认预警响应"""
+    code: int = 200
+    message: str = "success"
+    data: Dict[str, Any]
+
+class AlertStatsRequest(BaseModel):
+    """获取预警统计请求"""
+    user_id: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+class AlertStatsResponse(BaseModel):
+    """预警统计响应"""
+    code: int = 200
+    message: str = "success"
+    data: Dict[str, Any]
+
+class WebSocketMessage(BaseModel):
+    """WebSocket消息格式"""
+    type: str
+    timestamp: datetime
+    data: Optional[Dict[str, Any]] = None
+    message: Optional[str] = None
+
+class AlertCreateRequest(BaseModel):
+    """创建预警请求（内部使用）"""
+    user_id: str
+    type: AlertType
+    level: AlertLevel
+    title: str
+    message: str
+    source_data: Optional[Dict[str, Any]] = None
 
 # 管理员功能相关数据模型
 class IntensityLevel(str, Enum):
@@ -617,3 +686,222 @@ class AdminLogList(BaseModel):
     """管理员日志列表响应模型"""
     logs: List[AdminLog]
     total: int
+
+
+# ==================== 会话报告JSON数据结构模型 ====================
+
+# 1. 记录报告（record_report_json）相关模型
+class RecordReportSituation(BaseModel):
+    """记录报告中的情境项"""
+    description: str  # 情境描述
+    time: str  # 时间戳（ISO格式）
+    related: List[str]  # 相关情绪或思维
+
+class RecordReportJSON(BaseModel):
+    """记录报告JSON数据结构
+    
+    存储用户在对话中提及的关键信息，由记录师或分析师从对话中提取。
+    """
+    situations: List[RecordReportSituation]  # 具体情境列表
+    emotions: List[Dict[str, Any]]  # 情绪列表，包含type和intensity
+    automatic_thoughts: List[str]  # 自动思维列表
+    physical_sensations: List[str]  # 身体症状列表
+    cognitive_patterns: Optional[List[str]] = None  # 认知模式关键词
+
+# 2. 分析报告（analysis_report_json）相关模型
+class AnalysisReportEmotion(BaseModel):
+    """分析报告中的情绪项"""
+    type: str  # 情绪类型
+    intensity: float  # 强度（0-10）
+    percentage: float  # 占比（0-1）
+
+class AnalysisReportFourDimData(BaseModel):
+    """分析报告中的四维数据"""
+    timestamp: str  # 时间戳
+    intensity: float  # 强度值
+    hedonic: str  # 快感度（正性/中性/负性）
+    tension: str  # 紧张度（低/中/高）
+    complexity: str  # 复杂度（简单/复杂）
+
+class AnalysisReportJSON(BaseModel):
+    """分析报告JSON数据结构
+    
+    存储分析师对用户情绪的四维分析和原因分析。
+    """
+    emotion_summary: str  # 情绪概况总结
+    emotion_distribution: List[AnalysisReportEmotion]  # 情绪分布统计
+    four_dim_data: List[AnalysisReportFourDimData]  # 四维数据变化
+    reasons_analysis: str  # 情绪产生原因分析
+    cognitive_patterns: List[str]  # 认知模式关键词
+
+# 3. 调理报告（treatment_report_json）相关模型
+class TreatmentReportSuggestion(BaseModel):
+    """调理报告中的建议项"""
+    type: str  # 建议类型（CBT/TCM/通用）
+    title: str  # 建议标题
+    content: str  # 建议内容
+
+class TreatmentReportHomework(BaseModel):
+    """调理报告中的作业项"""
+    title: str  # 作业标题
+    description: str  # 作业描述
+    frequency: str  # 频率（每日/每周等）
+
+class TreatmentReportJSON(BaseModel):
+    """调理报告JSON数据结构
+    
+    存储调理师为用户生成的个性化调理建议和作业。
+    """
+    summary: str  # 调理总结
+    suggestions: List[TreatmentReportSuggestion]  # 调理建议列表
+    homework: List[TreatmentReportHomework]  # 作业任务列表
+    cbt_focus: Optional[str] = None  # CBT调理重点
+    tcm_focus: Optional[str] = None  # TCM调理重点
+
+# 会话报告相关数据模型
+class SessionReport(BaseModel):
+    """会话报告模型"""
+    id: int
+    user_id: str
+    session_id: str
+    record_report_json: Optional[RecordReportJSON] = None
+    analysis_report_json: Optional[AnalysisReportJSON] = None
+    treatment_report_json: Optional[TreatmentReportJSON] = None
+    created_at: datetime
+
+class SessionReportCreate(BaseModel):
+    """创建会话报告请求模型"""
+    user_id: str
+    session_id: str
+    record_report_json: Optional[RecordReportJSON] = None
+    analysis_report_json: Optional[AnalysisReportJSON] = None
+    treatment_report_json: Optional[TreatmentReportJSON] = None
+
+class SessionReportResponse(BaseModel):
+    """会话报告响应模型"""
+    id: int
+    user_id: str
+    session_id: str
+    record_report: Optional[RecordReportJSON] = None
+    analysis_report: Optional[AnalysisReportJSON] = None
+    treatment_report: Optional[TreatmentReportJSON] = None
+    created_at: datetime
+
+class SessionReportListResponse(BaseModel):
+    """会话报告列表响应模型"""
+    reports: List[SessionReport]
+    total: int
+
+class SessionReportDetailResponse(BaseModel):
+    """会话报告详情响应模型"""
+    id: int
+    user_id: str
+    session_id: str
+    record_report: RecordReportJSON
+    analysis_report: AnalysisReportJSON
+    treatment_report: TreatmentReportJSON
+    created_at: datetime
+
+class ReportList(BaseModel):
+    """报告列表响应模型"""
+    reports: List[SessionReport]
+    total: int
+
+
+# ==================== 情绪记录功能数据模型 ====================
+
+class EmotionTypeNew(str, Enum):
+    """情绪类型枚举"""
+    HAPPY = "happy"
+    EXCITED = "excited"
+    CALM = "calm"
+    TIRED = "tired"
+    SAD = "sad"
+    ANXIOUS = "anxious"
+    ANGRY = "angry"
+    WORRIED = "worried"
+    GRATEFUL = "grateful"
+    CONFUSED = "confused"
+    PEACEFUL = "peaceful"
+    LONELY = "lonely"
+
+class EmotionRecordCreate(BaseModel):
+    """创建情绪记录请求"""
+    user_id: str  # 用户ID
+    emotion_type: str
+    emotion_icon: str
+    emotion_name: str
+    emotion_color: str
+    signature: Optional[str] = None
+    record_date: str  # YYYY-MM-DD
+    record_time: str  # HH:mm:ss
+
+class EmotionRecordResponse(BaseModel):
+    """情绪记录响应"""
+    id: int
+    emotion_type: str
+    emotion_icon: str
+    emotion_name: str
+    emotion_color: str
+    signature: Optional[str]
+    record_date: str
+    record_time: str
+    created_at: datetime
+
+class EmotionRecordListResponse(BaseModel):
+    """情绪记录列表响应"""
+    code: int
+    message: str
+    data: Dict[str, Any]
+
+class EmotionCalendarDay(BaseModel):
+    """情绪日历天"""
+    date: str
+    day: int
+    has_record: bool
+    record: Optional[Dict[str, Any]] = None
+
+class EmotionCalendarResponse(BaseModel):
+    """情绪日历响应"""
+    code: int
+    message: str
+    data: Dict[str, Any]
+
+class EmotionDistributionItem(BaseModel):
+    """情绪分布项"""
+    type: str
+    name: str
+    color: str
+    count: int
+    percent: float
+
+class EmotionTrendItem(BaseModel):
+    """情绪趋势项"""
+    date: str
+    emotion_type: Optional[str] = None
+    emotion_score: Optional[int] = None
+    has_record: bool
+
+class EmotionStatisticsResponse(BaseModel):
+    """情绪统计响应"""
+    code: int
+    message: str
+    data: Dict[str, Any]
+
+class EmotionRemindSettings(BaseModel):
+    """情绪提醒设置"""
+    remind_enabled: bool
+    remind_times: int
+    remind_interval: int
+
+class EmotionRemindSettingsResponse(BaseModel):
+    """情绪提醒设置响应"""
+    code: int
+    message: str
+    data: Dict[str, Any]
+
+class EmotionNextRemindResponse(BaseModel):
+    """下次提醒响应"""
+    code: int
+    message: str
+    data: Dict[str, Any]
