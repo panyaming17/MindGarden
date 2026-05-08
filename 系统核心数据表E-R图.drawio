@@ -1,0 +1,97 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="第 1 页" id="F7KxYWZ035O7rP9av0Mz">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="系统核心数据库E-R图" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=18;fontStyle=1;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="300" y="10" width="280" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="users" value="&lt;b&gt;users (用户表)&lt;/b&gt;&lt;br&gt;id (PK, VARCHAR(50))&lt;br&gt;username (VARCHAR(50))&lt;br&gt;email (VARCHAR(100))&lt;br&gt;password_hash (VARCHAR(255))&lt;br&gt;role (ENUM)&lt;br&gt;is_active (BOOLEAN)&lt;br&gt;created_at&lt;br&gt;updated_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="210" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="chat_sessions" value="&lt;b&gt;chat_sessions (会话表)&lt;/b&gt;&lt;br&gt;session_id (PK, VARCHAR(50))&lt;br&gt;user_id (FK)&lt;br&gt;title (VARCHAR(255))&lt;br&gt;status (ENUM)&lt;br&gt;thinking_traps (TEXT)&lt;br&gt;emotional_response (TEXT)&lt;br&gt;created_at&lt;br&gt;updated_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="350" y="80" width="240" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="dialogues" value="&lt;b&gt;dialogues (对话记录表)&lt;/b&gt;&lt;br&gt;id (PK, BIGINT)&lt;br&gt;user_id (FK)&lt;br&gt;session_id (FK)&lt;br&gt;role (ENUM)&lt;br&gt;content (TEXT)&lt;br&gt;four_dim_intensity&lt;br&gt;four_dim_hedonic&lt;br&gt;four_dim_tension&lt;br&gt;four_dim_complexity&lt;br&gt;stage (VARCHAR(50))&lt;br&gt;created_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="100" y="280" width="210" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="user_archives" value="&lt;b&gt;user_archives (用户认知档案表)&lt;/b&gt;&lt;br&gt;id (PK, INT)&lt;br&gt;user_id (FK)&lt;br&gt;session_id (FK)&lt;br&gt;archive_json (JSON)&lt;br&gt;version (INT)&lt;br&gt;created_at&lt;br&gt;updated_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f0e8;strokeColor=#a3998d;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="290" width="210" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="strategies" value="&lt;b&gt;strategies (干预策略库表)&lt;/b&gt;&lt;br&gt;id (PK, INT)&lt;br&gt;intensity_level (ENUM)&lt;br&gt;hedonic (ENUM)&lt;br&gt;tension (ENUM)&lt;br&gt;complexity (ENUM)&lt;br&gt;fusion_mode (VARCHAR)&lt;br&gt;cbt_techniques (TEXT)&lt;br&gt;tcm_methods (TEXT)&lt;br&gt;strategy_content (TEXT)&lt;br&gt;example (TEXT)&lt;br&gt;created_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="650" y="80" width="210" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="advices" value="&lt;b&gt;advices (分析师建议表)&lt;/b&gt;&lt;br&gt;id (PK, BIGINT)&lt;br&gt;user_id (FK)&lt;br&gt;session_id (FK)&lt;br&gt;dialogue_id (FK, NULLABLE)&lt;br&gt;advice_json (JSON)&lt;br&gt;created_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="520" width="210" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="session_reports" value="&lt;b&gt;session_reports (会话报告表)&lt;/b&gt;&lt;br&gt;id (PK, BIGINT)&lt;br&gt;user_id (FK)&lt;br&gt;session_id (FK)&lt;br&gt;record_report_json (JSON)&lt;br&gt;analysis_report_json (JSON)&lt;br&gt;treatment_report_json (JSON)&lt;br&gt;record_report_status&lt;br&gt;analysis_report_status&lt;br&gt;treatment_report_status&lt;br&gt;analysis_retry_count&lt;br&gt;treatment_retry_count&lt;br&gt;created_at&lt;br&gt;updated_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcccc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="330" y="480" width="230" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="session_assessment_progress" value="&lt;b&gt;session_assessment_progress&lt;/b&gt;&lt;br&gt;(会话评估进度表)&lt;br&gt;id (PK, BIGINT)&lt;br&gt;session_id (FK, UNIQUE)&lt;br&gt;user_id (FK)&lt;br&gt;progress_json (JSON)&lt;br&gt;created_at&lt;br&gt;updated_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cce5ff;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="600" y="350" width="220" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="rel1" value="1" style="endArrow=block;html=1;edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;outlined=0;strokeWidth=2;fontSize=10;fontStyle=1;fontColor=#333;" edge="1" parent="1" source="users" target="chat_sessions">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel2" value="1" style="endArrow=block;html=1;edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;outlined=0;strokeWidth=2;fontSize=10;fontStyle=1;fontColor=#333;" edge="1" parent="1" source="chat_sessions" target="dialogues">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel3" value="1" style="endArrow=block;html=1;edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;outlined=0;strokeWidth=2;fontSize=10;fontStyle=1;fontColor=#333;" edge="1" parent="1" source="users" target="dialogues">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="145" y="200" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="rel4" value="1" style="endArrow=block;html=1;edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;outlined=0;strokeWidth=2;fontSize=10;fontStyle=1;fontColor=#333;" edge="1" parent="1" source="chat_sessions" target="user_archives">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel5" value="1" style="endArrow=block;html=1;edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;outlined=0;strokeWidth=2;fontSize=10;fontStyle=1;fontColor=#333;" edge="1" parent="1" source="chat_sessions" target="advices">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="430" y="250" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="rel6" value="1" style="endArrow=block;html=1;edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;outlined=0;strokeWidth=2;fontSize=10;fontStyle=1;fontColor=#333;" edge="1" parent="1" source="dialogues" target="advices">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="205" y="400" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="rel7" value="1" style="endArrow=block;html=1;edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;outlined=0;strokeWidth=2;fontSize=10;fontStyle=1;fontColor=#333;" edge="1" parent="1" source="chat_sessions" target="session_reports">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel8" value="1" style="endArrow=block;html=1;edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;outlined=0;strokeWidth=2;fontSize=10;fontStyle=1;fontColor=#333;" edge="1" parent="1" source="chat_sessions" target="session_assessment_progress">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel9" value="1" style="endArrow=block;html=1;edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;outlined=0;strokeWidth=2;fontSize=10;fontStyle=1;fontColor=#333;" edge="1" parent="1" source="users" target="advices">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="145" y="450" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="rel10" value="1" style="endArrow=block;html=1;edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;outlined=0;strokeWidth=2;fontSize=10;fontStyle=1;fontColor=#333;" edge="1" parent="1" source="users" target="session_reports">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="245" y="450" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="rel11" value="1" style="endArrow=block;html=1;edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;outlined=0;strokeWidth=2;fontSize=10;fontStyle=1;fontColor=#333;" edge="1" parent="1" source="users" target="session_assessment_progress">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="345" y="450" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend" value="&lt;b&gt;图例说明&lt;/b&gt;&lt;br&gt;• 箭头表示外键关系 (FK)&lt;br&gt;• 数字表示一对多关系 (1:N)&lt;br&gt;• 蓝色: 用户/会话类&lt;br&gt;• 绿色: 对话/档案类&lt;br&gt;• 橙色: 策略/建议类&lt;br&gt;• 紫色: 报告/进度类" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#cccccc;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="680" y="550" width="180" height="110" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
