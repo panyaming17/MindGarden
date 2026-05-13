@@ -1,9 +1,42 @@
 <mxfile host="app.diagrams.net">
   <diagram name="第 1 页" id="XY1bgqvKJLLMxWXy6FSx">
-    <mxGraphModel>
+    <mxGraphModel dx="1160" dy="730" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <mxCell id="I5eJ-Wy4HsgZpIasB7ax-17" edge="1" parent="1" source="I5eJ-Wy4HsgZpIasB7ax-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="I5eJ-Wy4HsgZpIasB7ax-7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="I5eJ-Wy4HsgZpIasB7ax-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" value="&lt;font style=&quot;font-size: 18px;&quot;&gt;第一步：数据集划分&lt;/font&gt;&lt;div&gt;&lt;font size=&quot;3&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font size=&quot;3&quot;&gt;&amp;nbsp; &amp;nbsp;处理：&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font size=&quot;3&quot;&gt;按严重程度(轻度/中度/重度)分层抽样，&lt;font face=&quot;Times New Roman&quot;&gt;70%&lt;/font&gt;训练集、&lt;font face=&quot;Times New Roman&quot;&gt;30%&lt;/font&gt;验证集&lt;/font&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="160" width="180" x="30" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="I5eJ-Wy4HsgZpIasB7ax-18" edge="1" parent="1" source="I5eJ-Wy4HsgZpIasB7ax-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="I5eJ-Wy4HsgZpIasB7ax-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="I5eJ-Wy4HsgZpIasB7ax-7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;font style=&quot;font-size: 18px;&quot;&gt;第二步：对话切分为情境单元&lt;/font&gt;&lt;div&gt;&lt;font size=&quot;3&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font size=&quot;3&quot;&gt;&amp;nbsp; &amp;nbsp;处理：&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font size=&quot;3&quot;&gt;解析医生-患者对话 → 以医生有意义提问为边界切分 → 按话题标签合并相邻块 → 提取患者核心语句作为&lt;font face=&quot;Times New Roman&quot;&gt;target_utterance&lt;/font&gt;&lt;/font&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="160" width="250" x="260" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="I5eJ-Wy4HsgZpIasB7ax-22" edge="1" parent="1" source="I5eJ-Wy4HsgZpIasB7ax-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="I5eJ-Wy4HsgZpIasB7ax-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="I5eJ-Wy4HsgZpIasB7ax-8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;font style=&quot;font-size: 18px;&quot; face=&quot;Times New Roman&quot;&gt;第四步：构建向量索引&lt;/font&gt;&lt;div&gt;&lt;font size=&quot;3&quot; face=&quot;Times New Roman&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font size=&quot;3&quot; face=&quot;Times New Roman&quot;&gt;&amp;nbsp; &amp;nbsp;处理：&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font size=&quot;3&quot; face=&quot;Times New Roman&quot;&gt;加载SentenceTransformer编码器 → 初始化ChromaDB持久化客户端 → 创建/获取Collection（余弦相似度） → 逐条将对话文本编码为384维向量 → 批量写入ChromaDB&lt;/font&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="220" width="270" x="570" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="I5eJ-Wy4HsgZpIasB7ax-9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;font style=&quot;font-size: 18px;&quot; face=&quot;Times New Roman&quot;&gt;第六步：情感预测器&lt;/font&gt;&lt;div&gt;&lt;font size=&quot;3&quot; face=&quot;Times New Roman&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font size=&quot;3&quot; face=&quot;Times New Roman&quot;&gt;&amp;nbsp; &amp;nbsp;处理：&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font size=&quot;3&quot; face=&quot;Times New Roman&quot;&gt;用ChromaDB 持久化文件系统数据库 ，基于 HNSW 近似最近邻（ANN）算法构建索引。内部用 SQLite 存元数据，用二进制 .bin 文件存向量数据。&lt;/font&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="220" width="200" x="20" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="I5eJ-Wy4HsgZpIasB7ax-21" edge="1" parent="1" source="I5eJ-Wy4HsgZpIasB7ax-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="I5eJ-Wy4HsgZpIasB7ax-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="I5eJ-Wy4HsgZpIasB7ax-10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;font style=&quot;font-size: 18px;&quot; face=&quot;Times New Roman&quot;&gt;第五步：RAG服务封装&lt;/font&gt;&lt;div&gt;&lt;font size=&quot;3&quot; face=&quot;Times New Roman&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font size=&quot;3&quot; face=&quot;Times New Roman&quot;&gt;&amp;nbsp; &amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;封装成方法：&lt;/span&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;：&lt;/span&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font size=&quot;3&quot; face=&quot;Times New Roman&quot;&gt;&lt;b&gt;retrieve_similar_cases() ：&lt;/b&gt;用户输入+对话上下文 → 编码查询向量 → ChromaDB余弦检索top-k相似案例&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font size=&quot;3&quot; face=&quot;Times New Roman&quot;&gt;&lt;b&gt;predict_four_dim_from_cases() ：&lt;/b&gt;距离转权重 → 强度加权平均 + 分类维度加权投票 → 输出四维预测+可解释相似案例&lt;/font&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="220" width="280" x="260" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="I5eJ-Wy4HsgZpIasB7ax-19" edge="1" parent="1" source="I5eJ-Wy4HsgZpIasB7ax-11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="I5eJ-Wy4HsgZpIasB7ax-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="I5eJ-Wy4HsgZpIasB7ax-11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="&lt;font style=&quot;font-size: 18px;&quot;&gt;第三步：LLM批量多维标注&lt;/font&gt;&lt;div&gt;&lt;font size=&quot;3&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font size=&quot;3&quot;&gt;&amp;nbsp; &amp;nbsp;处理：&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;font size=&quot;3&quot;&gt;逐&lt;font face=&quot;Times New Roman&quot;&gt;episode&lt;/font&gt;调用&lt;font face=&quot;Times New Roman&quot;&gt;LLM（json_mode）&lt;/font&gt;，按中医情志四维(强度/快感度/紧张度/复杂度)+&lt;font face=&quot;Times New Roman&quot;&gt;CBT&lt;/font&gt;认知要素(自动思维/思维陷阱/核心信念)进行多维标注&lt;/font&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="160" width="270" x="557" y="150" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
