@@ -1,0 +1,193 @@
+# ========== 环境变量文件（包含 API 密钥等敏感信息）==========
+.env
+.env.local
+.env.*.local
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# ========== 数据库文件 ==========
+# SQLite 数据库
+*.db
+*.sqlite
+*.sqlite3
+
+# ChromaDB 向量数据库目录
+c9ca97ba-*/
+f8e03a80-*/
+*.bin
+header.bin
+data_level0.bin
+length.bin
+link_lists.bin
+
+# MySQL 数据转储文件
+*.sql
+
+# ========== 机器学习模型和数据目录 ==========
+# HAMD 量表相关数据
+HAMD/
+
+# 机器学习模型文件（包含训练好的模型、数据集等）
+model/
+
+# 模型检查点和缓存
+backend/checkpoints/
+*.pkl
+*.pt
+*.pth
+*.onnx
+*_model.json
+*_model.pkl
+
+# ========== Python 相关 ==========
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# ========== Node.js / Frontend ==========
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ========== 操作系统文件 ==========
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ========== 临时文件 ==========
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ========== 日志文件 ==========
+*.log
+logs/
+
+# ========== 其他敏感文件 ==========
+# 包含密钥、令牌的文件
+*key*
+*secret*
+*token*
+*.pem
+*.key
+
+# 备份文件
+*.bak
+*.backup
+*.old
